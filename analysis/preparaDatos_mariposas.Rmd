@@ -1,0 +1,209 @@
+---
+title: "Prepara Datos Mariposas"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::html_clean:
+    highlight: kate
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+
+```{r pkg}
+library(tidyverse)
+library(readxl)
+library(xlsx)
+library(here)
+library(lubridate)
+library(ggplot2)
+library(ggpubr)
+```
+
+## Preparamos datos
+
+- quitamos 2008, 2009, 2010
+- quitamos meses de marzo, abril, sept, octubre
+
+```{r}
+d <- read_excel(here::here("rawdata/Datos_Mariposas_2020_11_12.xlsx"), sheet = "Observaciones")
+
+env <- read.xlsx("rawdata/Tabla_variables_modelización_lepidópteros_ACTUALIZADO_2019.xls", 1) %>% 
+  rename(code = Abreviatura)
+elev <- env %>% dplyr::select(transecto = "Transecto", elev = "m.s.n.m.") %>% 
+  filter(!transecto %in% c("SNEVADA", "RÁSTER"))
+
+# visitas sin observaciones 
+vaux <- read_excel(here::here("rawdata/Datos_Mariposas_2020_11_12.xlsx"), sheet = "Visitas sin observaciones") 
+v <- vaux %>% 
+  dplyr::select(id_visita, transecto, nombre, longitud, fecha) %>% 
+  filter(fecha >= as.Date("2011-12-31")) %>% 
+  mutate(month = lubridate::month(fecha)) %>% 
+  mutate(year = lubridate::year(fecha)) %>% 
+  filter(!month %in% c(3,4,9,10)) %>% 
+  mutate(longitud = as.numeric(longitud))
+  
+  
+
+df <- d %>% dplyr::select(id_visita, transecto, nombre, longitud, tramo, fecha, id_especie, especie, numero) %>% 
+  filter(fecha >= as.Date("2011-12-31")) %>% 
+  mutate(month = lubridate::month(fecha)) %>% 
+  mutate(year = lubridate::year(fecha)) %>% 
+  filter(!month %in% c(3,4,9,10)) %>% 
+  mutate(longitud = as.numeric(longitud))
+
+
+total_ind <- df %>% 
+  group_by(nombre,transecto, year) %>% 
+  summarise(ntotal = sum(numero))
+
+```
+
+- Calcular los metros muestreados 
+
+```{r}
+
+aux <- df %>% dplyr::select(nombre, year, id_visita, longitud) %>% unique() %>% ungroup() 
+visitas_con_datos <- aux %>% group_by(nombre, year) %>% summarise(total = sum(longitud))  
+  
+aux_v <- v %>% dplyr::select(nombre, year, id_visita, longitud) %>% unique() %>% ungroup() 
+visitas_sin_datos <- aux_v %>% group_by(nombre, year) %>% summarise(total = sum(longitud))  
+
+  
+esfuerzo <- bind_rows(visitas_con_datos, visitas_sin_datos) %>% 
+  group_by(nombre, year) %>% 
+  summarise(total_long = sum(total) / 100)
+
+
+densidad <- total_ind %>% inner_join(esfuerzo) %>% 
+  mutate(den = ntotal / total_long)
+
+
+```
+
+- Calculamos la densidad promedio por transecto sin considerar 2018 
+- quitamos Transecto 11 (Hoya Mora Fen-Marip) 
+
+```{r}
+densidad_avg <- densidad %>% 
+  filter(year != 2018) %>% 
+  filter(transecto != 11) %>% 
+  group_by(nombre) %>% 
+  summarise(mean = mean(den), 
+            sd = sd(den), 
+            se = sd/sqrt(n()))
+
+# add elevation 
+densidad_avg <- densidad_avg %>% inner_join(elev, by = c("nombre" = "transecto"))
+
+
+write_csv(densidad_avg, here::here("data/densidad_avg.csv"))
+```
+
+```{r}
+densidad_avg %>% 
+  ggplot(aes(x=elev, y = mean)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se)) + 
+  theme_bw() +
+  ylab("densidad (n ind /100 m muestreados)")
+```
+
+
+## Calcular el índice de shannon 
+
+```{r}
+m <- df %>% 
+  filter(year != 2018) %>% 
+  filter(!year %in% c(2012, 2013)) %>% 
+  mutate(sp = str_replace(especie, " ", ".")) %>% 
+  group_by(nombre, sp, year) %>% 
+  summarise(n_ind = sum(numero)) %>% 
+  filter(nombre != "Hoya Mora Fen-Marip") %>% 
+  pivot_wider(names_from = year, 
+              values_from=n_ind, names_prefix = "y", values_fill = 0) %>% as.data.frame()
+
+# m_diversidad <- m %>% 
+#   filter(nombre != "Hoya Mora Fen-Marip") %>% 
+#   pivot_wider(names_from = year, 
+#               values_from=n_ind, names_prefix = "y", values_fill = 0) %>% as.data.frame()
+
+years <- c("y2014","y2015","y2016","y2017","y2019")
+
+out_h <- data.frame() 
+for (y in years){ 
+  
+  vars <- c("sp", "nombre", y) 
+
+  aux_diversidad <- m %>% 
+    dplyr::select(all_of(vars)) %>% 
+    pivot_wider(names_from = sp, values_from = y, values_fill = 0) %>% 
+    column_to_rownames(var = "nombre")
+  
+  h <- vegan::diversity(aux_diversidad) %>% as.data.frame()
+  names(h) <- "diversidad"
+  h$year <- y
+  h$nombre <- row.names(h)
+  
+  out_h <- rbind(out_h, h)
+ 
+}
+
+rownames(out_h) <- NULL
+diversidad <- out_h %>% mutate(year = as.numeric(substring(year,2)))
+
+diversidad_avg <- diversidad %>% 
+  group_by(nombre) %>% 
+  summarise(mean = mean(diversidad), 
+            sd = sd(diversidad), 
+            se = sd/sqrt(n())) %>% 
+  inner_join(elev, by = c("nombre" = "transecto"))
+
+diversidad_avg %>% 
+  ggplot(aes(x=elev, y = mean)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se)) + 
+  theme_bw() +
+  ylab("diversidad (H)")
+
+write_csv(diversidad_avg, here::here("data/diversidad_avg.csv"))
+```
+
+# Grafico conjunto 
+```{r}
+
+zdiv <- diversidad_avg %>% dplyr::select(nombre, mean_div = mean, se_div = se)
+zden <- densidad_avg %>% dplyr::select(nombre, mean_den = mean, se_den = se)
+
+z <- zdiv %>% inner_join(zden) 
+
+ggscatter(z, x="mean_div", y="mean_den", add = "reg.line", 
+            add.params = list(color = "blue", fill = "lightgray"),
+   conf.int = TRUE, # Add confidence interval
+   cor.coef = TRUE, # Add correlation coefficient. see ?stat_cor
+   cor.coeff.args = list(method = "pearson", label.x = 1, label.sep = "\n")
+   ) +
+  geom_errorbarh(aes(xmin = mean_div - se_div, xmax = mean_div + se_div)) +
+  geom_errorbar(aes(ymin = mean_den - se_den, ymax = mean_den + se_den)) 
+
+
+```
+
+
+
+
