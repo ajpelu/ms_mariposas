@@ -2,7 +2,7 @@
 title: ""
 date: "`r Sys.Date()`"
 output:
-  rmdformats::html_clean:
+  rmdformats::robobook:
     highlight: kate
 ---
 

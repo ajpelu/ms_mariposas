@@ -1,8 +1,11 @@
 ---
 title: "Prepara Datos Mariposas"
 date: "`r Sys.Date()`"
+author: 
+  - Jose M. Barea-Azcón
+  - Antonio J. Pérez-Luque
 output:
-  rmdformats::html_clean:
+  rmdformats::robobook:
     highlight: kate
 editor_options: 
   chunk_output_type: console
@@ -33,9 +36,11 @@ library(here)
 library(lubridate)
 library(ggplot2)
 library(ggpubr)
+library(DT)
+library(vegan)
 ```
 
-## Preparamos datos
+# Preparamos datos
 
 - quitamos 2008, 2009, 2010
 - quitamos meses de marzo, abril, sept, octubre
@@ -43,7 +48,7 @@ library(ggpubr)
 ```{r}
 d <- read_excel(here::here("rawdata/Datos_Mariposas_2020_11_12.xlsx"), sheet = "Observaciones")
 
-env <- read.xlsx("rawdata/Tabla_variables_modelización_lepidópteros_ACTUALIZADO_2019.xls", 1) %>% 
+env <- read_excel(here::here("rawdata/Tabla_variables_modelizacion_lepidopteros_ACTUALIZADO_2019.xls"), 1) %>% 
   rename(code = Abreviatura)
 elev <- env %>% dplyr::select(transecto = "Transecto", elev = "m.s.n.m.") %>% 
   filter(!transecto %in% c("SNEVADA", "RÁSTER"))
@@ -71,13 +76,16 @@ df <- d %>% dplyr::select(id_visita, transecto, nombre, longitud, tramo, fecha, 
 total_ind <- df %>% 
   group_by(nombre,transecto, year) %>% 
   summarise(ntotal = sum(numero))
-
 ```
 
-- Calcular los metros muestreados 
+```{r}
+datatable(total_ind)
+```
+
+
+# Calcular el esfuerzo de muestreo y la densidad 
 
 ```{r}
-
 aux <- df %>% dplyr::select(nombre, year, id_visita, longitud) %>% unique() %>% ungroup() 
 visitas_con_datos <- aux %>% group_by(nombre, year) %>% summarise(total = sum(longitud))  
   
@@ -92,8 +100,6 @@ esfuerzo <- bind_rows(visitas_con_datos, visitas_sin_datos) %>%
 
 densidad <- total_ind %>% inner_join(esfuerzo) %>% 
   mutate(den = ntotal / total_long)
-
-
 ```
 
 - Calculamos la densidad promedio por transecto sin considerar 2018 
@@ -116,6 +122,12 @@ write_csv(densidad_avg, here::here("data/densidad_avg.csv"))
 ```
 
 ```{r}
+DT::datatable(densidad_avg)
+```
+
+Variación de la abundancia con la elevación
+
+```{r}
 densidad_avg %>% 
   ggplot(aes(x=elev, y = mean)) + 
   geom_point() + 
@@ -125,7 +137,9 @@ densidad_avg %>%
 ```
 
 
-## Calcular el índice de shannon 
+# Calcular el índice de shannon 
+- Calculamos la diversidad en cada transecto por año 
+- Ojo hemos quitado 2012 y 2013
 
 ```{r}
 m <- df %>% 
@@ -173,7 +187,15 @@ diversidad_avg <- diversidad %>%
             sd = sd(diversidad), 
             se = sd/sqrt(n())) %>% 
   inner_join(elev, by = c("nombre" = "transecto"))
+```
 
+```{r}
+DT::datatable(diversidad_avg)
+```
+
+## Variación de la diversidad con la elevación
+
+```{r}
 diversidad_avg %>% 
   ggplot(aes(x=elev, y = mean)) + 
   geom_point() + 
@@ -184,7 +206,11 @@ diversidad_avg %>%
 write_csv(diversidad_avg, here::here("data/diversidad_avg.csv"))
 ```
 
-# Grafico conjunto 
+
+
+
+# Relación entre diversidad y densidad 
+
 ```{r}
 
 zdiv <- diversidad_avg %>% dplyr::select(nombre, mean_div = mean, se_div = se)
@@ -199,10 +225,46 @@ ggscatter(z, x="mean_div", y="mean_den", add = "reg.line",
    cor.coeff.args = list(method = "pearson", label.x = 1, label.sep = "\n")
    ) +
   geom_errorbarh(aes(xmin = mean_div - se_div, xmax = mean_div + se_div)) +
-  geom_errorbar(aes(ymin = mean_den - se_den, ymax = mean_den + se_den)) 
+  geom_errorbar(aes(ymin = mean_den - se_den, ymax = mean_den + se_den))
+```
+
+# NMDS 
+
+```{r, message=FALSE}
+mm <- m %>% pivot_longer(y2014:y2019, names_to = "year", values_to = "n") %>% 
+  group_by(nombre, sp) %>% 
+  summarise(ntotal = sum(n)) %>% ungroup() 
+
+mmm <- mm %>% pivot_wider(names_from = "sp", values_from = "ntotal", values_fill=0) %>% as.data.frame()
+
+m1 <- metaMDS(mmm[,-1], k=2)
 
 
 ```
+
+## Evaluar el NMDS
+Utilamos el Sherpard plot, que representan la disimilaridad observada entre todos los datos y la distancia predicha (*ordination distance*). Como observamos existe un buen ajuste.
+
+```{r}
+stressplot(m1)
+```
+
+Asimismo el *stress*, es una medida de lo bien que refleja la ordinación las distancias observadas entre las muestras. Mayor valor de stress implica peor ajuste. De forma general se asume que stress < 0.05 (excelente); stress < 0.1 (bueno); stress <0.2 ok; stress < 0.3 pobre representación. En nuestro caso tenemos un valor de stress de ``r m1$stress`` 
+
+
+## Representación del NMDS 
+```{r}
+plot(m1) 
+```
+
+
+```{r}
+pl <- ordiplot(m1, type = "none")
+text(pl, "species", col="gray", cex=0.4)
+points(pl, "sites", pch=21, col="black", bg="white")
+
+```
+
 
 
 
