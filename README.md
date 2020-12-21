@@ -14,6 +14,9 @@ Todos los datos/análisis son preeliminares.
 
 - [Preparación de los datos de abundancia y diversidad](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/preparaDatos_mariposas.html). Ver tambien en el archivo [`/analysis/preparaDatos_mariposas.html`](/analysis/preparaDatos_mariposas.html)
 
+- [Exploración y selección de los datos de variables ambientales](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/explora_variables_ambientales.html). Ver tambien en el archivo [`explora_variables_ambientales.html`](explora_variables_ambientales.html)
+
+
 ### Datos
 En la carpeta [`/data/`](/data/) están los datos de: 
 
