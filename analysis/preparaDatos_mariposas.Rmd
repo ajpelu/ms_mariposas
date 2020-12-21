@@ -50,7 +50,7 @@ d <- read_excel(here::here("rawdata/Datos_Mariposas_2020_11_12.xlsx"), sheet = "
 
 env <- read_excel(here::here("rawdata/Tabla_variables_modelizacion_lepidopteros_ACTUALIZADO_2019.xls"), 1) %>% 
   rename(code = Abreviatura)
-elev <- env %>% dplyr::select(transecto = "Transecto", elev = "m.s.n.m.") %>% 
+elev <- env %>% dplyr::select(transecto = "Transecto", elev = "elevation") %>% 
   filter(!transecto %in% c("SNEVADA", "RÁSTER"))
 
 # visitas sin observaciones 
