@@ -38,11 +38,11 @@ library(ggplot2)
 library(ggpubr)
 library(DT)
 library(vegan)
+library(ggrepel)
 ```
 
 # Preparamos datos
-
-- quitamos 2008, 2009, 2010
+- quitamos 2008, 2009, 2010, 2011
 - quitamos meses de marzo, abril, sept, octubre
 
 ```{r}
@@ -70,10 +70,15 @@ df <- d %>% dplyr::select(id_visita, transecto, nombre, longitud, tramo, fecha, 
   mutate(month = lubridate::month(fecha)) %>% 
   mutate(year = lubridate::year(fecha)) %>% 
   filter(!month %in% c(3,4,9,10)) %>% 
-  mutate(longitud = as.numeric(longitud))
+  mutate(longitud = as.numeric(longitud)) 
+
+# Hemos quitado 2018 para todos los transectos excepto 45, 46, 48 y 49 
+
+dfno2018 <- df %>% 
+  filter(!(year == 2018 & !transecto %in% c(45,46,48,49)))
 
 
-total_ind <- df %>% 
+total_ind <- dfno2018 %>% 
   group_by(nombre,transecto, year) %>% 
   summarise(ntotal = sum(numero))
 ```
@@ -86,7 +91,7 @@ datatable(total_ind)
 # Calcular el esfuerzo de muestreo y la densidad 
 
 ```{r}
-aux <- df %>% dplyr::select(nombre, year, id_visita, longitud) %>% unique() %>% ungroup() 
+aux <- dfno2018 %>% dplyr::select(nombre, year, id_visita, longitud) %>% unique() %>% ungroup() 
 visitas_con_datos <- aux %>% group_by(nombre, year) %>% summarise(total = sum(longitud))  
   
 aux_v <- v %>% dplyr::select(nombre, year, id_visita, longitud) %>% unique() %>% ungroup() 
@@ -107,7 +112,7 @@ densidad <- total_ind %>% inner_join(esfuerzo) %>%
 
 ```{r}
 densidad_avg <- densidad %>% 
-  filter(year != 2018) %>% 
+  # filter(year != 2018) %>% 
   filter(transecto != 11) %>% 
   group_by(nombre) %>% 
   summarise(mean = mean(den), 
@@ -117,6 +122,14 @@ densidad_avg <- densidad %>%
 # add elevation 
 densidad_avg <- densidad_avg %>% inner_join(elev, by = c("nombre" = "transecto"))
 
+## Create code
+abr <- densidad_avg %>% dplyr::select(nombre)
+abr$code <- c(
+  "AV", "BSJ", "DU", "LP", "PI", "TP", "CO", "CAR",
+  "CAU", "HM", "FA", "LS", "CA", "SA", "PB", "PR", 
+  "MV", "PA", "PU", "DI")
+
+densidad_avg <- densidad_avg %>% inner_join(abr)
 
 write_csv(densidad_avg, here::here("data/densidad_avg.csv"))
 ```
@@ -129,11 +142,13 @@ Variación de la abundancia con la elevación
 
 ```{r}
 densidad_avg %>% 
-  ggplot(aes(x=elev, y = mean)) + 
+  ggplot(aes(x=elev, y = mean, label=code)) + 
+  geom_smooth() + 
   geom_point() + 
   geom_errorbar(aes(ymin = mean - se, ymax = mean + se)) + 
   theme_bw() +
-  ylab("densidad (n ind /100 m muestreados)")
+  ylab("densidad (n ind /100 m muestreados)") +
+  geom_text_repel()
 ```
 
 
@@ -142,9 +157,9 @@ densidad_avg %>%
 - Ojo hemos quitado 2012 y 2013
 
 ```{r}
-m <- df %>% 
-  filter(year != 2018) %>% 
-  filter(!year %in% c(2012, 2013)) %>% 
+m <- dfno2018 %>% 
+  # filter(year != 2018) %>% 
+  # filter(!year %in% c(2012, 2013)) %>% 
   mutate(sp = str_replace(especie, " ", ".")) %>% 
   group_by(nombre, sp, year) %>% 
   summarise(n_ind = sum(numero)) %>% 
@@ -157,7 +172,7 @@ m <- df %>%
 #   pivot_wider(names_from = year, 
 #               values_from=n_ind, names_prefix = "y", values_fill = 0) %>% as.data.frame()
 
-years <- c("y2014","y2015","y2016","y2017","y2019")
+years <- c("y2012", "y2013", "y2014","y2015","y2016","y2017","y2018","y2019")
 
 out_h <- data.frame() 
 for (y in years){ 
@@ -186,7 +201,8 @@ diversidad_avg <- diversidad %>%
   summarise(mean = mean(diversidad), 
             sd = sd(diversidad), 
             se = sd/sqrt(n())) %>% 
-  inner_join(elev, by = c("nombre" = "transecto"))
+  inner_join(elev, by = c("nombre" = "transecto")) %>% 
+  inner_join(abr)
 ```
 
 ```{r}
@@ -197,11 +213,13 @@ DT::datatable(diversidad_avg)
 
 ```{r}
 diversidad_avg %>% 
-  ggplot(aes(x=elev, y = mean)) + 
+  ggplot(aes(x=elev, y = mean, label = code)) + 
+  geom_smooth() + 
   geom_point() + 
   geom_errorbar(aes(ymin = mean - se, ymax = mean + se)) + 
-  theme_bw() +
-  ylab("diversidad (H)")
+  theme_bw() + 
+  ylab("diversidad (H)") + 
+  geom_text_repel()
 
 write_csv(diversidad_avg, here::here("data/diversidad_avg.csv"))
 ```
@@ -216,16 +234,17 @@ write_csv(diversidad_avg, here::here("data/diversidad_avg.csv"))
 zdiv <- diversidad_avg %>% dplyr::select(nombre, mean_div = mean, se_div = se)
 zden <- densidad_avg %>% dplyr::select(nombre, mean_den = mean, se_den = se)
 
-z <- zdiv %>% inner_join(zden) 
+z <- zdiv %>% inner_join(zden) %>% inner_join(abr)
 
-ggscatter(z, x="mean_div", y="mean_den", add = "reg.line", 
+ggscatter(z, x="mean_div", y="mean_den", add = "reg.line", label = "code", repel = TRUE,
             add.params = list(color = "blue", fill = "lightgray"),
    conf.int = TRUE, # Add confidence interval
    cor.coef = TRUE, # Add correlation coefficient. see ?stat_cor
    cor.coeff.args = list(method = "pearson", label.x = 1, label.sep = "\n")
    ) +
   geom_errorbarh(aes(xmin = mean_div - se_div, xmax = mean_div + se_div)) +
-  geom_errorbar(aes(ymin = mean_den - se_den, ymax = mean_den + se_den))
+  geom_errorbar(aes(ymin = mean_den - se_den, ymax = mean_den + se_den)) 
+
 ```
 
 # NMDS 

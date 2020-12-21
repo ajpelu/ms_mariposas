@@ -1,0 +1,203 @@
+---
+title: "Environmental variables"
+date: "`r Sys.Date()`"
+author: 
+  - Jose M. Barea-Azcón
+  - Antonio J. Pérez-Luque
+output:
+  rmdformats::robobook:
+    highlight: kate
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+
+```{r pkg}
+library(tidyverse)
+library(readxl)
+library(xlsx)
+library(here)
+library(lubridate)
+library(ggplot2)
+library(ggpubr)
+library(DT)
+library(vegan)
+library(ggrepel)
+```
+
+# Preparamos datos
+
+```{r}
+envraw <-read_excel(here::here("rawdata/Tabla_variables_modelizacion_lepidopteros_ACTUALIZADO_2019.xls"), 1) %>% 
+  filter(!Transecto %in% c("RÁSTER", "SNEVADA")) %>% 
+  dplyr::select(-Transecto, -elevation, -`Longitud transecto`)
+
+clima <- read_excel(here::here("rawdata/Tabla_variables_clima_lepidópteros_ACTUALIZADO_2019.xls"), 1)
+
+env <- clima %>% inner_join(envraw) %>% 
+  rename(code = Abreviatura) %>% 
+  dplyr::select(-Transecto)
+
+# Read data diversidad, densidad 
+
+div <- read_csv(here::here("data/diversidad_avg.csv")) %>% 
+    rename(div_mean = mean, div_sd = sd, div_se = se) %>% 
+  dplyr::select(-elev)
+
+den <- read_csv(here::here("data/densidad_avg.csv")) %>% 
+  rename(den_mean = mean, den_sd = sd, den_se = se) %>% 
+  dplyr::select(-elev)
+
+df <- div %>% 
+  inner_join(den) %>% 
+  inner_join(env) 
+```
+
+
+# Explore variables 
+
+```{r}
+d <- df %>% 
+  dplyr::select(-div_sd, -div_se, -den_se, -den_sd) %>% 
+  relocate(code)
+
+res <- cor(d[, -c(1:4)])
+symnum(res, abbr.colnames = FALSE)
+
+library(corrplot)
+cor.mtest <- function(mat, ...) {
+    mat <- as.matrix(mat)
+    n <- ncol(mat)
+    p.mat<- matrix(NA, n, n)
+    diag(p.mat) <- 0
+    for (i in 1:(n - 1)) {
+        for (j in (i + 1):n) {
+            tmp <- cor.test(mat[, i], mat[, j], ...)
+            p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+        }
+    }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+
+p.mat <- cor.mtest(d[,-c(1:4)])
+
+
+corrplot(res, type = "upper", order = "hclust", tl.col = "black", tl.srt = 90, tl.cex = 0.4,
+         p.mat = p.mat, sig.level = 0.05, 
+         insig = "blank", 
+         diag = FALSE)
+```
+
+# cluster 
+```{r}
+dis <- dist(res, method = "euclidean")
+fit <- hclust(dis, method="ward")
+plot(fit)
+```
+
+
+
+
+# Seleccion de variables 
+- FR_CONIF 
+- Pp_ver
+- TP_RSD_P
+- TP_ES_OE
+- FR_PASTO
+- elevation
+- t_anual
+- HIDRO_ICT
+- TP_PEND
+- Pp_anu
+- FR_QUERC
+- FR_MATDE
+- FR_MATDI
+
+
+```{r}
+dsel <- d %>% dplyr::select(code, div_mean, den_mean, 
+                            FR_CONIF, Pp_ver, TP_RSD_P, TP_ES_OE,
+                            elevation, t_anual, 
+                            HIDRO_ICT, TP_PEND, Pp_anu,FR_MATDI)  
+                            #FR_QUERC, FR_MATDE, FR_PASTO, 
+
+dselplot <- dsel %>% pivot_longer(cols = FR_CONIF:FR_MATDI)
+
+
+```
+
+# Diversity vs variables 
+
+```{r}
+ggplot(dselplot, aes(y=div_mean, x = value)) + 
+  geom_point() + 
+  facet_wrap(~name, scales = "free_x") +
+  theme_bw()
+
+```
+
+# Density vs. variables 
+```{r}
+ggplot(dselplot, aes(y=den_mean, x = value)) + 
+  geom_point(color="red") + 
+  facet_wrap(~name, scales = "free_x") +
+  theme_bw()
+```
+
+
+```{r,eval= FALSE, echo=FALSE}
+library(glmulti)
+m1 <- glm(div_mean ~ FR_CONIF + Pp_ver + TP_RSD_P + 
+                       TP_ES_OE  + elevation + 
+                       HIDRO_ICT + TP_PEND + Pp_anu + FR_MATDI,
+                     data = dsel, family = "poisson")
+
+
+library(car)
+t(t(vif(m1)))
+
+
+# overdispersion
+e2 <- resid(m1, type = "pearson")
+p <- length(coef(m1))
+dispersion <- sum(e2^2 / nrow(dsel) - p)
+
+set.seed(1234)
+
+select_m0 <- glmulti(div_mean ~ FR_CONIF + Pp_ver + TP_RSD_P + 
+                       TP_ES_OE + elevation + t_anual + 
+                       HIDRO_ICT + TP_PEND + Pp_anu + FR_MATDI,
+                     data = dsel,
+             level= 2,
+        chunk = 1, chunks = 4,
+        method = "ga",
+        crit = "bic", 
+        family = "poisson", 
+        marginality = TRUE,
+        confsetsize = 5, 
+        plotty = FALSE, report = FALSE)
+
+```
+
+
+
+
+
+
