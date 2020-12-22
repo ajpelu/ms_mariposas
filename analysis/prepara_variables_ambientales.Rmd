@@ -1,0 +1,320 @@
+---
+title: "Prepara matrix datos climaticos y ambientales"
+date: "`r Sys.Date()`"
+author: 
+  - Jose M. Barea-Azcón
+  - Antonio J. Pérez-Luque
+output:
+  rmdformats::robobook:
+    highlight: kate
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+
+```{r pkg}
+library(tidyverse)
+library(readxl)
+library(xlsx)
+library(here)
+library(lubridate)
+library(ggplot2)
+library(ggpubr)
+library(DT)
+library(vegan)
+library(ggrepel)
+```
+
+# Preparamos datos
+
+```{r}
+
+clima_raw <- read_excel(here::here("rawdata/raw_Tabla_variables_clima_lepidópteros_ACTUALIZADO_2019.xls"), 1) %>% 
+  rename(code = Abreviatura)
+
+## select solo 2012 a 2019 inclusives 
+
+clima <- clima_raw %>% 
+  dplyr::select(-contains("2008"), 
+                -contains("2009"), 
+                -contains("2010"),
+                -contains("2011")) 
+```
+
+
+```{r}
+# Precipitacion Acumulada 
+Pp_inv <- clima %>% 
+  dplyr::select(code, contains("Precipitación Invierno")) %>% 
+  dplyr::select(code, contains("Acumulado")) %>% 
+  rowwise() %>% 
+  mutate(m = mean(c_across(where(is.numeric)))) %>% 
+  dplyr::select(code, Pp_inv = m)
+
+Pp_oto <- clima %>% 
+  dplyr::select(code, contains("Precipitación Otoño")) %>% 
+  dplyr::select(code, contains("Acumulado")) %>% 
+  rowwise() %>% 
+  mutate(m = mean(c_across(where(is.numeric)))) %>% 
+  dplyr::select(code, Pp_oto = m)
+
+Pp_pri <- clima %>% 
+  dplyr::select(code, contains("Precipitación Primavera")) %>% 
+  dplyr::select(code, contains("Acumulado")) %>% 
+  rowwise() %>% 
+  mutate(m = mean(c_across(where(is.numeric)))) %>% 
+  dplyr::select(code, Pp_pri = m)
+
+Pp_ver <- clima %>% 
+  dplyr::select(code, contains("Precipitación Verano")) %>% 
+  dplyr::select(code, contains("Acumulado")) %>% 
+  rowwise() %>% 
+  mutate(m = mean(c_across(where(is.numeric)))) %>% 
+  dplyr::select(code, Pp_ver = m)
+
+Pp_anu <- clima %>% 
+  dplyr::select(code, contains("Acumulado ANUAL")) %>% 
+  rowwise() %>% 
+  mutate(m = mean(c_across(where(is.numeric)))) %>% 
+  dplyr::select(code, Pp_anu = m)
+  
+
+pp <- Pp_anu %>% 
+  inner_join(Pp_inv) %>% 
+  inner_join(Pp_pri) %>% 
+  inner_join(Pp_ver) %>% 
+  inner_join(Pp_oto) %>% 
+  filter(code !="RASTER")
+```
+
+
+```{r}
+# Temperatura media 
+
+t_inv <- clima %>% 
+  dplyr::select(code, contains("Temperatura Invierno")) %>% 
+  rowwise() %>% 
+  mutate(m = mean(c_across(where(is.numeric)))) %>% 
+  dplyr::select(code, t_inv = m)
+
+t_oto <- clima %>% 
+  dplyr::select(code, contains("Temperatura Otoño")) %>% 
+  rowwise() %>% 
+  mutate(m = mean(c_across(where(is.numeric)))) %>% 
+  dplyr::select(code, t_oto = m)
+
+t_pri <- clima %>% 
+  dplyr::select(code, contains("Temperatura Primavera")) %>% 
+  rowwise() %>% 
+  mutate(m = mean(c_across(where(is.numeric)))) %>% 
+  dplyr::select(code, t_pri = m)
+
+t_ver <- clima %>% 
+  dplyr::select(code, contains("Temperatura Verano")) %>% 
+  rowwise() %>% 
+  mutate(m = mean(c_across(where(is.numeric)))) %>% 
+  dplyr::select(code, t_ver = m)
+
+temp <- t_inv %>% 
+  inner_join(t_pri) %>% 
+  inner_join(t_ver) %>% 
+  inner_join(t_oto) %>% 
+  rowwise() %>% 
+  mutate(t_anual = mean(c_across(where(is.numeric)))) %>% 
+  filter(code !="RASTER")
+
+```
+
+# Prepara data no climate 
+
+```{r}
+envraw <-read_excel(here::here("rawdata/raw_Tabla_variables_modelización_lepidópteros_ACTUALIZADO_2019.xls"), 1) %>% 
+  filter(!Transecto %in% c("RÁSTER", "SNEVADA")) %>% 
+  dplyr::select(-contains("Temperatura"), 
+                -contains("Precipitación")) %>% 
+  rename(elev = contains("m.s.n.m."), 
+         code = Abreviatura) %>% 
+  dplyr::select(-contains("LS_B"), 
+                -contains("MT_"), 
+                -LS_NDVI, -TP_ELEV, 
+                -FR_OLIVO, -FR_EUCAL, 
+                -FR_URBAN, -FR_AGUA,
+                -FR_VIASC, -FR_CULTI,
+                -DS_VIASC, -DS_URBAN, 
+                -DS_LAGIN, -DS_AGUA, 
+                -DS_RIOS, -DS_CULTI)
+
+```
+
+
+```{r}
+df <- envraw %>% inner_join(pp) %>% inner_join(temp)
+```
+
+# Seleccionar variables 
+
+- Correlación entre variables 
+```{r}
+# Escalasmos las variables 
+dfscale <- scale(df[,-c(1:2)])
+# correlaciones 
+dfcor <- cor(dfscale) # res
+symnum(dfcor, abbr.colnames = FALSE)
+
+dfdis <- dist(dfcor, method = "euclidean")
+```
+
+
+- Plot de correlaciones 
+
+```{r}
+library(corrplot)
+cor.mtest <- function(mat, ...) {
+    mat <- as.matrix(mat)
+    n <- ncol(mat)
+    p.mat<- matrix(NA, n, n)
+    diag(p.mat) <- 0
+    for (i in 1:(n - 1)) {
+        for (j in (i + 1):n) {
+            tmp <- cor.test(mat[, i], mat[, j], ...)
+            p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+        }
+    }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+
+p.mat <- cor.mtest(dfscale)
+
+
+corrplot::corrplot(dfcor, type = "upper", tl.col = "black", tl.srt = 90, tl.cex = 0.4,
+         p.mat = p.mat, sig.level = 0.05, 
+         insig = "blank", 
+         diag = FALSE)
+
+
+
+```
+
+```{r}
+pdf(here::here("figs/correlation_all_variables_numbers.pdf"))
+corrplot::corrplot(dfcor, method = "number",
+                   type = "upper", tl.col = "black", 
+                   col= "black", tl.srt = 90, tl.cex = 0.35, 
+                   number.cex = .3, number.digits = 2,
+         diag = FALSE)
+dev.off()
+
+pdf(here::here("figs/correlation_all_variables.pdf"))
+corrplot::corrplot(dfcor, type = "upper",
+                   tl.col = "black", tl.srt = 90, tl.cex = 0.4,
+         p.mat = p.mat, sig.level = 0.05, 
+         insig = "blank", 
+         diag = FALSE)
+dev.off()
+
+```
+
+
+```{r}
+library(corrr)
+dfscale_corrr <- correlate(dfscale)
+
+dfscale_corrr %>% shave(upper = FALSE) %>%
+  fashion() %>% kable()
+```
+
+
+- hierarchical cluster 
+```{r}
+# library("pvclust")
+# fit <- hclust(dfdis, method="ward")
+# plot(fit, cex = .6)
+
+# 33 Variables 
+# Vamos a probar a reducir a 10
+
+library(factoextra)
+h <- hcut(dfdis, k=14)
+dendro <- fviz_dend(h, rect = TRUE, horiz = TRUE, 
+          lwd = 0.5, cex = .5)
+dendro
+ggsave(here::here("figs/dendrograma.pdf"), 
+       height = 7, width = 5, device = "pdf")
+
+```
+
+
+# Seleccion de variables 
+
+```{r}
+env_sel <- c("Pp_anu", "TP_PEND", "FR_MATDE", 
+             "TP_SU_NO", "FR_QUERC", "FR_CONIF", 
+             "TP_RSH_V", "HIDRO_ITH", "t_anual",
+             "elev", "TP_ES_OE", "DS_ARBOL", "TP_RSD_P",
+             "Pp_ver")
+```
+
+ old selection
+- FR_CONIF 
+- Pp_ver
+- TP_RSD_P
+- TP_ES_OE
+- FR_PASTO
+- elevation
+- t_anual
+- HIDRO_ICT
+- TP_PEND
+- Pp_anu
+- FR_QUERC
+- FR_MATDE
+- FR_MATDI
+
+# Unir div_mean y den_mean y generar un dataframe para modelizar 
+```{r}
+ 
+div <- read_csv(here::here("data/diversidad_avg.csv")) %>% 
+    rename(div_mean = mean, div_sd = sd, div_se = se) %>% 
+  dplyr::select(-elev, - nombre)
+
+den <- read_csv(here::here("data/densidad_avg.csv")) %>% 
+  rename(den_mean = mean, den_sd = sd, den_se = se) %>% 
+  dplyr::select(-elev, -nombre)
+
+
+df_candidato <- df %>% 
+  dplyr::select(code, matches(env_sel)) %>% 
+  inner_join(den) %>% 
+  inner_join(div) 
+write_csv(df_candidato, here::here("data/df_candidatas.csv"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
