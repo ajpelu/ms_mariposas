@@ -141,14 +141,21 @@ DT::datatable(densidad_avg)
 Variación de la abundancia con la elevación
 
 ```{r}
-densidad_avg %>% 
+plot_density <- densidad_avg %>% 
   ggplot(aes(x=elev, y = mean, label=code)) + 
-  geom_smooth() + 
-  geom_point() + 
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs"), colour="gray", alpha=.3) + 
+  # geom_smooth(method="loess", span=.5) + 
   geom_errorbar(aes(ymin = mean - se, ymax = mean + se)) + 
-  theme_bw() +
-  ylab("densidad (n ind /100 m muestreados)") +
-  geom_text_repel()
+    geom_point(size=2, shape=21, fill="white") +
+  theme_bw() + 
+  theme(
+    panel.grid = element_blank() 
+  ) + 
+  ylab("Density (n ind /100 m muestreados)") + 
+  xlab("Elevation") + 
+  geom_text_repel() 
+
+plot_density
 ```
 
 
@@ -203,6 +210,8 @@ diversidad_avg <- diversidad %>%
             se = sd/sqrt(n())) %>% 
   inner_join(elev, by = c("nombre" = "transecto")) %>% 
   inner_join(abr)
+
+write_csv(diversidad_avg, here::here("data/diversidad_avg.csv"))
 ```
 
 ```{r}
@@ -212,18 +221,34 @@ DT::datatable(diversidad_avg)
 ## Variación de la diversidad con la elevación
 
 ```{r}
-diversidad_avg %>% 
+plot_diversity <- diversidad_avg %>% 
   ggplot(aes(x=elev, y = mean, label = code)) + 
-  geom_smooth() + 
-  geom_point() + 
-  geom_errorbar(aes(ymin = mean - se, ymax = mean + se)) + 
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs"), colour="gray", alpha=.3) + 
+  # geom_smooth() + 
+    geom_errorbar(aes(ymin = mean - se, ymax = mean + se)) + 
+    geom_point(size=2, shape=21, fill="white") +
   theme_bw() + 
+   theme(
+    panel.grid = element_blank() 
+  ) + 
   ylab("diversidad (H)") + 
-  geom_text_repel()
+  xlab("Elevation") + 
+  geom_text_repel() 
 
-write_csv(diversidad_avg, here::here("data/diversidad_avg.csv"))
+plot_diversity
 ```
 
+```{r}
+library("patchwork")
+
+pdd <- plot_density / plot_diversity
+
+ggsave(here::here("figs/density_diversity.pdf"),
+       device = "pdf",
+       width = 4, height = 6)
+pdd
+dev.off()
+```
 
 
 
@@ -246,6 +271,25 @@ ggscatter(z, x="mean_div", y="mean_den", add = "reg.line", label = "code", repel
   geom_errorbar(aes(ymin = mean_den - se_den, ymax = mean_den + se_den)) 
 
 ```
+
+
+
+```{r, eval=FALSE, echo=FALSE}
+
+m <- nls(mean_den ~ I(mean_div^power), data = z, start = list(power = 1), trace = T)
+m.exp <- nls(mean_den ~ I(a * exp(b * mean_div)), data = z, start = list(a = 5, b = 2), trace = T)
+
+
+plot(z$mean_div, z$mean_den)
+s <- seq(from = 0, to = 3, length = 50)
+lines(s, predict(m, list(mean_div = s)), col = "green")
+lines(s, predict(m.exp, list(mean_div = s)), col = "red")
+
+
+```
+
+
+
 
 # NMDS 
 
