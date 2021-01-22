@@ -16,6 +16,8 @@ Todos los datos/análisis son preeliminares.
 
 - [Exploración y selección de los datos de variables ambientales](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/explora_variables_ambientales.html). Ver tambien en el archivo [`explora_variables_ambientales.html`](explora_variables_ambientales.html)
 
+- [Modelización de la densidad de mariposas](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/modelo_densidad.html). Ver tambien en el archivo [`modelo_densidad.html`](modelo_densidad.html)
+
 
 ### Datos
 En la carpeta [`/data/`](/data/) están los datos de: 
