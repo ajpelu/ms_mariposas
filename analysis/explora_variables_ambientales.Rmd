@@ -167,9 +167,11 @@ library(glmulti)
 m1 <- glm(div_mean ~ FR_CONIF + Pp_ver + TP_RSD_P + 
                        TP_ES_OE  + elevation + 
                        HIDRO_ICT + TP_PEND + Pp_anu + FR_MATDI,
-                     data = dsel, family = "poisson")
+                     data = dsel, family = "gaussian")
 
+library(arm)
 
+m1.1 <- standardize(m1)
 library(car)
 t(t(vif(m1)))
 
@@ -185,15 +187,17 @@ select_m0 <- glmulti(div_mean ~ FR_CONIF + Pp_ver + TP_RSD_P +
                        TP_ES_OE + elevation + t_anual + 
                        HIDRO_ICT + TP_PEND + Pp_anu + FR_MATDI,
                      data = dsel,
-             level= 2,
+             level= 1,
         chunk = 1, chunks = 4,
         method = "ga",
         crit = "bic", 
-        family = "poisson", 
+        family = "gaussian", 
         marginality = TRUE,
         confsetsize = 5, 
         plotty = FALSE, report = FALSE)
 
+summary(select_m0[[1]])
+select_m0@formulas[1]
 ```
 
 

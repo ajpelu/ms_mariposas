@@ -111,6 +111,34 @@ densidad <- total_ind %>% inner_join(esfuerzo) %>%
 - quitamos Transecto 11 (Hoya Mora Fen-Marip) 
 
 ```{r}
+densidad_by_year <- densidad %>% 
+  filter(nombre != "Hoya Mora Fen-Marip") %>% 
+  mutate(code = recode(nombre, 
+                       "Aguas Verdes" = "AV",
+                        "Barranco de San Juan"="BSJ",
+                       "BMS_ DurcaL"="DU",
+                       "BMS_Laguna"="LP",
+                       "BMS_Pitres"="PI",
+                       "BMS_Turbera"="TP",
+                       "Campo Otero"="CO",
+                       "Carihuela"="CAR",
+                       "Cauchiles"="CAU",
+                       "Hoya Mora"="HM",
+                       "Hoya Mora Fen-Marip"="HMF",
+                       "La Fabriquilla"="FA",
+                       "Laguna Seca"="LS",
+                       "Las Catifas"="CA",
+                       "Las Sabinas"="SA",
+                       "Loma papeles bajo"="PB",
+                       "Los Praillos"="PR",
+                       "Matas verdes"="MV",
+                       "Papeles alto"="PA",
+                       "Purche"="PU",
+                       "Robledal dilar"="DI"))
+write_csv(densidad_by_year, here::here("data/densidad_by_year.csv"))
+
+
+
 densidad_avg <- densidad %>% 
   # filter(year != 2018) %>% 
   filter(transecto != 11) %>% 
@@ -161,10 +189,14 @@ plot_density
 
 # Calcular el índice de shannon 
 - Calculamos la diversidad en cada transecto por año 
-- Ojo hemos quitado 2012 y 2013
 
 ```{r}
+# ¿Cuantas especies no determinadas? 
+nodet <- dfno2018 %>% filter(str_detect(especie, " spp")) 
+taxanodeterminados <- unique(nodet$especie)
+
 m <- dfno2018 %>% 
+  filter(!(especie %in% taxanodeterminados)) %>% 
   # filter(year != 2018) %>% 
   # filter(!year %in% c(2012, 2013)) %>% 
   mutate(sp = str_replace(especie, " ", ".")) %>% 
@@ -248,6 +280,43 @@ ggsave(here::here("figs/density_diversity.pdf"),
        width = 4, height = 6)
 pdd
 dev.off()
+```
+
+# Tabla 
+
+```{r}
+nspecies <- m %>% inner_join(abr) %>% 
+  dplyr::select(code, sp) %>% 
+  group_by(code) %>% count()
+
+abundancia <- densidad %>% 
+  filter(nombre != "Hoya Mora Fen-Marip") %>% 
+  group_by(nombre) %>% 
+  summarise(mean = round(mean(ntotal),2),
+            sd = sd(ntotal), 
+            se = round(sd/sqrt(n()),2), 
+            n_ind_total = sum(ntotal)) %>% 
+  inner_join(abr) %>% dplyr::select(-nombre)
+ 
+
+o <- env %>% dplyr::select(Transecto, code, elevation, "Longitud transecto") %>% 
+  inner_join(densidad_avg) %>% 
+  dplyr::select(-nombre, -elev, - sd) %>% 
+  mutate(mean = round(mean, 2), 
+         se = round(se,2)) %>% 
+  unite("density", mean,se, sep = " ± ") %>% 
+  inner_join(diversidad_avg) %>% 
+  dplyr::select(-nombre, -elev, - sd) %>% 
+  mutate(mean = round(mean, 2), 
+         se = round(se,2)) %>% 
+  unite("diversity", mean,se, sep = " ± ") %>% 
+  inner_join(nspecies) %>% 
+  rename(richness = n) %>% 
+  inner_join(abundancia) %>% 
+  dplyr::select(-sd) %>% 
+  unite("abundancia_media", mean,se, sep = " ± ") 
+
+write.csv(o, here::here("data/tabla_descriptivos.csv"))
 ```
 
 

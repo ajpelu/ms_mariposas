@@ -101,6 +101,66 @@ pp <- Pp_anu %>%
   inner_join(Pp_ver) %>% 
   inner_join(Pp_oto) %>% 
   filter(code !="RASTER")
+
+```
+
+```{r}
+pp_inv_year <- clima %>% 
+  dplyr::select(code, contains("Precipitación Invierno")) %>% 
+  dplyr::select(code, contains("Acumulado")) %>% 
+  pivot_longer(-code, names_to = c("year", "remove"),
+               values_to = "p_inv_year",
+               names_prefix = "Precipitación Invierno", 
+               names_transform = list(year = as.integer),
+               names_pattern = "(.*) (Acumulado trimestre)") %>% 
+  dplyr::select(-remove)
+
+pp_pri_year <- clima %>% 
+  dplyr::select(code, contains("Precipitación Primavera")) %>% 
+  dplyr::select(code, contains("Acumulado")) %>% 
+  pivot_longer(-code, names_to = c("year", "remove"),
+               values_to = "p_pri_year",
+               names_prefix = "Precipitación Primavera",
+               names_transform = list(year = as.integer),
+               names_pattern = "(.*) (Acumulado trimestre)") %>% 
+  dplyr::select(-remove)
+
+
+pp_ver_year <- clima %>% 
+  dplyr::select(code, contains("Precipitación Verano")) %>% 
+  dplyr::select(code, contains("Acumulado")) %>% 
+  pivot_longer(-code, names_to = c("year", "remove"),
+               values_to = "p_ver_year",
+               names_prefix = "Precipitación Verano", 
+               names_transform = list(year = as.integer),
+               names_pattern = "(.*) (Acumulado trimestre)") %>% 
+  dplyr::select(-remove)
+
+
+pp_oto_year <- clima %>% 
+  dplyr::select(code, contains("Precipitación Otoño")) %>% 
+  dplyr::select(code, contains("Acumulado")) %>% 
+  pivot_longer(-code, names_to = c("year", "remove"),
+               values_to = "p_oto_year",
+               names_prefix = "Precipitación Otoño", 
+               names_transform = list(year = as.integer),
+               names_pattern = "(.*) (Acumulado trimestre)") %>% 
+  dplyr::select(-remove)
+
+pp_anu_year <- clima %>% 
+  dplyr::select(code, contains("Acumulado ANUAL")) %>% 
+  pivot_longer(-code, names_to = c("year", "remove"),
+               names_prefix = "Precipitación", 
+               values_to = "p_anu_year",
+               names_transform = list(year = as.integer),
+               names_pattern = "(.*) (Acumulado ANUAL)") %>% 
+  dplyr::select(-remove)
+
+pp_season <- pp_anu_year %>% 
+  inner_join(pp_pri_year) %>% 
+  inner_join(pp_ver_year) %>% 
+  inner_join(pp_oto_year) %>%  
+  inner_join(pp_inv_year) 
 ```
 
 
@@ -138,8 +198,51 @@ temp <- t_inv %>%
   rowwise() %>% 
   mutate(t_anual = mean(c_across(where(is.numeric)))) %>% 
   filter(code !="RASTER")
-
 ```
+
+```{r}
+t_inv_year <- clima %>% 
+  dplyr::select(code, contains("Temperatura Invierno")) %>% 
+  pivot_longer(-code, names_to = c("year"),
+               values_to = "t_inv_year",
+               names_prefix = "Temperatura Invierno", 
+               names_transform = list(year = as.integer)) 
+
+t_ver_year <- clima %>% 
+  dplyr::select(code, contains("Temperatura Verano")) %>% 
+  pivot_longer(-code, names_to = c("year"),
+               values_to = "t_ver_year",
+               names_prefix = "Temperatura Verano", 
+               names_transform = list(year = as.integer)) 
+
+t_pri_year <- clima %>% 
+  dplyr::select(code, contains("Temperatura Primavera")) %>% 
+  pivot_longer(-code, names_to = c("year"),
+               values_to = "t_pri_year",
+               names_prefix = "Temperatura Primavera", 
+               names_transform = list(year = as.integer)) 
+
+t_oto_year <- clima %>% 
+  dplyr::select(code, contains("Temperatura Otoño")) %>% 
+  pivot_longer(-code, names_to = c("year"),
+               values_to = "t_oto_year",
+               names_prefix = "Temperatura Otoño", 
+               names_transform = list(year = as.integer)) 
+
+t_year <- t_pri_year %>% 
+  inner_join(t_ver_year) %>% 
+  inner_join(t_oto_year) %>%  
+  inner_join(t_inv_year) %>% 
+  rowwise() %>% 
+  mutate(t_anual = mean(t_pri_year, t_oto_year, t_inv_year, t_ver_year))
+```
+
+
+```{r}
+climate_year <- pp_season %>% inner_join(t_year)
+write_csv(climate_year, here::here("data/climate_year.csv"))
+```
+
 
 # Prepara data no climate 
 

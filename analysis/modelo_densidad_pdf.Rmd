@@ -1,0 +1,413 @@
+---
+title: "modela Densidad pdf"
+output: pdf_document 
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=70)
+```
+
+
+```{r pkg}
+library(tidyverse)
+library(readxl)
+library(xlsx)
+library(here)
+library(lubridate)
+library(ggplot2)
+library(ggpubr)
+library(DT)
+library(vegan)
+library(ggrepel)
+library(MuMIn)
+library(glmulti)
+library(DHARMa)
+```
+
+```{r}
+df <- read_csv(here::here("data/df_candidatas.csv"))
+
+densidad_year <- read_csv(here::here("data/densidad_by_year.csv"))
+
+dfs <- df %>% select(-c(den_mean:div_se))
+
+d <- inner_join(densidad_year, dfs, by = "code") %>%
+  select(-nombre, -transecto, -ntotal, -total_long) %>% 
+  relocate(code)
+
+climate_year <- read_csv(here::here("data/climate_year.csv")) %>% 
+  dplyr::select(code, year, p_anu_year, p_ver_year, t_anual_year = t_anual) 
+# - ojo según nuesta selección previa tenemos: 
+# - Pp_anual, t_anual, Pp_verano --> estas variables voy a coger una por año 
+
+```
+
+```{r}
+m <- d %>% inner_join(climate_year) %>% 
+  dplyr::select(-Pp_anu, -t_anual, -Pp_ver)
+```
+
+## Explora variables 
+```{r}
+m %>% ggplot(aes(x=p_anu_year, y = den)) + geom_point() + geom_smooth()
+
+mlong <- m %>% pivot_longer(TP_PEND:t_anual_year)
+
+mlong %>% ggplot(aes(x=value, y=den)) +
+  geom_point() + geom_smooth() + 
+  facet_wrap(~name, scales = "free_x")
+
+```
+
+
+
+```{r, echo=FALSE}
+#####################################################################
+#VIF FUNCTION.
+#To use:  corvif(YourDataFile)
+corvif <- function(dataz) {
+  dataz <- as.data.frame(dataz)
+  #correlation part
+  #cat("Correlations of the variables\n\n")
+  #tmp_cor <- cor(dataz,use="complete.obs")
+  #print(tmp_cor)
+  
+  #vif part
+  form    <- formula(paste("fooy ~ ",paste(strsplit(names(dataz)," "),collapse=" + ")))
+  dataz   <- data.frame(fooy=1,dataz)
+  lm_mod  <- lm(form,dataz)
+  
+  cat("\n\nVariance inflation factors\n\n")
+  print(myvif(lm_mod))
+}
+
+
+#Support function for corvif. Will not be called by the user
+myvif <- function(mod) {
+  v <- vcov(mod)
+  assign <- attributes(model.matrix(mod))$assign
+  if (names(coefficients(mod)[1]) == "(Intercept)") {
+    v <- v[-1, -1]
+    assign <- assign[-1]
+  } else warning("No intercept: vifs may not be sensible.")
+  terms <- labels(terms(mod))
+  n.terms <- length(terms)
+  if (n.terms < 2) stop("The model contains fewer than 2 terms")
+  if (length(assign) > dim(v)[1] ) {
+    diag(tmp_cor)<-0
+    if (any(tmp_cor==1.0)){
+      return("Sample size is too small, 100% collinearity is present")
+    } else {
+      return("Sample size is too small")
+    }
+  }
+  R <- cov2cor(v)
+  detR <- det(R)
+  result <- matrix(0, n.terms, 3)
+  rownames(result) <- terms
+  colnames(result) <- c("GVIF", "Df", "GVIF^(1/2Df)")
+  for (term in 1:n.terms) {
+    subs <- which(assign == term)
+    result[term, 1] <- det(as.matrix(R[subs, subs])) * det(as.matrix(R[-subs, -subs])) / detR
+    result[term, 2] <- length(subs)
+  }
+  if (all(result[, 2] == 1)) {
+    result <- data.frame(GVIF=result[, 1])
+  } else {
+    result[, 3] <- result[, 1]^(1/(2 * result[, 2]))
+  }
+  invisible(result)
+}
+#END VIF FUNCTIONS
+
+
+
+```
+
+
+### Selección via VIF 
+```{r}
+# Selection via VIF
+myvars <- names(m %>% dplyr::select(-code, -year, -den))
+
+corvif(m[,myvars])
+# remove TP_RSD_P
+myvars <- names(m %>% dplyr::select(-code, -year, -den, -TP_RSD_P))
+corvif(m[,myvars])
+# remove TP_PEND
+myvars <- names(m %>% dplyr::select(-code, -year, -den, -TP_RSD_P, -TP_PEND, -FR_CONIF, -FR_QUERC))
+corvif(m[,myvars])
+```
+
+
+### Modelos 
+- Transformo algunas variables 
+- Hago selección de modelos usando BIC:
+
+potential variables: 
+den_sr ~ FR_MATDE+TP_SU_NO+TP_RSH_V+HIDRO_ITH+elev+TP_ES_OE+DS_ARBOL+p_anu_year+p_ver_year+t_anual_year
+
+```{r}
+m <- m %>% 
+  mutate(FR_MATDELog = log(FR_MATDE + 2),
+         DS_ARBOLLog = log(DS_ARBOL + 1),
+         den_sr = sqrt(den))
+
+f <- as.formula(den_sr ~ FR_MATDE+TP_SU_NO+TP_RSH_V+HIDRO_ITH+elev+TP_ES_OE+DS_ARBOL+p_anu_year+p_ver_year+t_anual_year)
+
+
+# automatic model selection 
+set.seed(1234)
+# fam <- "poisson"
+fam <- "gaussian"
+
+select_f <- glmulti(f, data = m,
+              level= 1, chunk = 1, chunks = 4, 
+              method = "ga", crit = "bic", 
+              family = fam, 
+              marginality = TRUE,
+              confsetsize = 5, plotty = FALSE, report = FALSE)
+
+# Summary best models 
+summary_f <- summary(select_f@objects[[1]]) 
+
+# Select best 5 models 
+# top5_models <- weightable(select_f)
+  
+f1 <- glm(select_f@formulas[[1]], family = fam, data = m)
+f2 <- glm(select_f@formulas[[2]], family = fam, data = m)
+f3 <- glm(select_f@formulas[[3]], family = fam, data = m)
+f4 <- glm(select_f@formulas[[4]], family = fam, data = m)
+f5 <- glm(select_f@formulas[[5]], family = fam, data = m)
+
+
+top5_table <- as.data.frame(model.sel(f1, f2, f3, f4, f5, rank = BIC)) %>% 
+    dplyr::select(-family) %>% 
+    mutate(model = 
+             c(f1$formula, f2$formula, f3$formula, f4$formula, f5$formula)) %>% 
+    relocate(model)
+
+write.csv(as.matrix(top5_table), file=here::here("data/mod_den_selectionBIC.csv"))
+
+```
+
+### Validación modelo
+```{r}
+f1.res <- simulateResiduals(f1, seed = 123, n=1000, plot=TRUE)
+
+# Test dispersion
+testDispersion(f1.res)
+
+# Heterocedasticidad
+testQuantiles(f1.res)
+```
+
+```{r}
+m %>% ggplot(aes(x=FR_MATDE)) + geom_histogram()
+m %>% ggplot(aes(x=FR_MATDELog)) + geom_histogram()
+m %>% ggplot(aes(x=HIDRO_ITH)) + geom_histogram()
+m %>% ggplot(aes(x=DS_ARBOLLog)) + geom_histogram()
+```
+
+### Trasnformar datos 
+```{r}
+### Trasnformar datos 
+f1t <- glm(den_sr ~ 1 + FR_MATDELog + HIDRO_ITH + DS_ARBOLLog, family = "gaussian", data = m)
+f1t.res <- simulateResiduals(f1t, seed = 123, n=1000, plot=TRUE)
+```
+
+```{r}
+library(visreg)
+
+ytitle <- expression(sqrt ("abundancia"))
+lab_FR_MATDELog <- expression(log("FR_MATDE + 2"))
+lab_DS_ARBOLLog <- expression(log("DS_ARBOL + 1"))
+
+visreg(f1t, ylab = ytitle, "FR_MATDELog", xlab = lab_FR_MATDELog)
+visreg(f1t, ylab = ytitle, "DS_ARBOLLog", xlab = lab_DS_ARBOLLog)
+visreg(f1t, ylab = ytitle, "HIDRO_ITH", xlab = "HIDRO_ITH")
+```
+
+```{r}
+library(tab)
+ms <- f1t
+tc <- tab::tabglm(ms, columns = c("beta.se",  "test", "p")) 
+names(tc) <- c("Variable", "Estimate", "Zvalue", "pvalue") 
+  
+tablita_auxiliar <- data.frame(
+    Variable = c("DegreeFreedom", "AIC", "BIC", "DevianceExplained"), 
+    Estimate = as.character(c(df.residual(ms), round(AIC(ms),0), round(BIC(ms), 0), 
+                              round( ((ms$null.deviance - ms$deviance) / ms$null.deviance),3))),
+    Zvalue = "", pvalue = "")
+  
+tc <- bind_rows(tc, tablita_auxiliar)
+
+write.csv(tc, here::here("data/mod_den_no_interaction.csv"))
+```
+
+
+### Interacción?? 
+```{r}
+# Nueva selección de modelos 
+
+f1t_inter <- glm(den_sr ~ 1 + FR_MATDELog * HIDRO_ITH * DS_ARBOLLog,
+                 family = "gaussian", data = m)
+
+s <- glmulti(den_sr ~ 1 + FR_MATDELog * HIDRO_ITH * DS_ARBOLLog, 
+                            data = m,
+              level= 2, chunk = 1, chunks = 4, 
+              method = "ga", crit = "bic", 
+              family = fam, 
+              marginality = TRUE,
+              confsetsize = 5, plotty = FALSE, report = FALSE)
+
+f1s <- glm(s@formulas[[1]], family = fam, data = m)
+f2s <- glm(s@formulas[[2]], family = fam, data = m)
+f3s <- glm(s@formulas[[3]], family = fam, data = m)
+f4s <- glm(s@formulas[[4]], family = fam, data = m)
+f5s <- glm(s@formulas[[5]], family = fam, data = m)
+
+
+top5_table_s <- as.data.frame(model.sel(f1s, f2s, f3s, f4s, f5s, rank = BIC)) %>% 
+    dplyr::select(-family) %>% 
+    mutate(model = 
+             c(f1s$formula, f2s$formula, f3s$formula, f4s$formula, f5s$formula)) %>% 
+    relocate(model)
+
+write.csv(as.matrix(top5_table_s), file=here::here("data/mod_den_selectionBIC_inter.csv"))
+
+
+summary(f1s)
+visreg(f1s, ylab = ytitle, "FR_MATDELog", xlab = lab_FR_MATDELog)
+visreg(f1s, ylab = ytitle, "DS_ARBOLLog", xlab = lab_DS_ARBOLLog)
+visreg(f1s, ylab = ytitle, "HIDRO_ITH", xlab = "HIDRO_ITH")
+
+visreg(f1s, ylab = ytitle, "FR_MATDELog",by = "HIDRO_ITH", layout =c(3,1)) 
+visreg(f1s, ylab = ytitle, "FR_MATDELog",by = "DS_ARBOLLog", layout =c(3,1))
+visreg(f1s, ylab = ytitle, "HIDRO_ITH",by = "DS_ARBOLLog", layout =c(3,1))
+
+
+ms <- f1s
+tc <- tab::tabglm(ms, columns = c("beta.se",  "test", "p")) 
+names(tc) <- c("Variable", "Estimate", "Zvalue", "pvalue") 
+  
+tablita_auxiliar <- data.frame(
+    Variable = c("DegreeFreedom", "AIC", "BIC", "DevianceExplained"), 
+    Estimate = as.character(c(df.residual(ms), round(AIC(ms),0), round(BIC(ms), 0), 
+                              round( ((ms$null.deviance - ms$deviance) / ms$null.deviance),3))),
+    Zvalue = "", pvalue = "")
+  
+tc <- bind_rows(tc, tablita_auxiliar)
+
+write.csv(tc, here::here("data/mod_den_interaction.csv"))
+```
+
+
+### VAS por aqui
+
+```{r}
+overdisp <- function(modelito, data){ 
+  residuos <- resid(modelito, type="pearson")
+  n <- nrow(data)
+  p <- length(coef(modelito)) + 1 
+  overdisp<- sum(residuos^2) / (n - p)
+  return(overdisp)
+} 
+
+
+# How many variance explained 
+(f$null.deviance - f1$deviance)/f1$null.deviance*100
+
+## diagnostics 
+diagnosis_m <- simulateResiduals(f1s, seed = 123, n=1000, plot=TRUE)
+
+
+# para la importancia de las variables
+# res <- select_wt
+# 
+# mmi <- as.data.frame(coef(res))
+# mmi <- data.frame(Estimate=mmi$Est, SE=sqrt(mmi$Uncond), Importance=mmi$Importance, row.names=row.names(mmi))
+# mmi$z <- mmi$Estimate / mmi$SE
+# mmi$p <- 2*pnorm(abs(mmi$z), lower.tail=FALSE)
+# names(mmi) <- c("Estimate", "Std. Error", "Importance", "z value", "Pr(>|z|)")
+# mmi <- mmi[order(mmi$Importance, decreasing=TRUE), c(1,2,4,3)]
+# round(mmi, 4)
+```
+
+
+
+
+
+
+
+
+
+# Seleccion de variables 
+
+```{r, eval=FALSE}
+env_sel <- c("Pp_anu", "TP_PEND", "FR_MATDE", 
+             "TP_SU_NO", "FR_QUERC", "FR_CONIF", 
+             "TP_RSH_V", "HIDRO_ITH", "t_anual",
+             "elev", "TP_ES_OE", "DS_ARBOL", "TP_RSD_P",
+             "Pp_ver")
+```
+
+ old selection
+- FR_CONIF 
+- Pp_ver
+- TP_RSD_P
+- TP_ES_OE
+- FR_PASTO
+- elevation
+- t_anual
+- HIDRO_ICT
+- TP_PEND
+- Pp_anu
+- FR_QUERC
+- FR_MATDE
+- FR_MATDI
+
+# Unir div_mean y den_mean y generar un dataframe para modelizar 
+```{r, eval=FALSE}
+ 
+div <- read_csv(here::here("data/diversidad_avg.csv")) %>% 
+    rename(div_mean = mean, div_sd = sd, div_se = se) %>% 
+  dplyr::select(-elev, - nombre)
+
+den <- read_csv(here::here("data/densidad_avg.csv")) %>% 
+  rename(den_mean = mean, den_sd = sd, den_se = se) %>% 
+  dplyr::select(-elev, -nombre)
+
+
+df_candidato <- df %>% 
+  dplyr::select(code, matches(env_sel)) %>% 
+  inner_join(den) %>% 
+  inner_join(div) 
+write_csv(df_candidato, here::here("data/df_candidatas.csv"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
