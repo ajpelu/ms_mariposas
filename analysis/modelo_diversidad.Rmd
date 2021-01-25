@@ -1,0 +1,446 @@
+---
+title: "Modela Diversidad-Riqueza"
+date: "`r Sys.Date()`"
+author: 
+  - Jose M. Barea-Azcón
+  - Antonio J. Pérez-Luque
+output:
+  rmdformats::robobook:
+    highlight: kate
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+
+```{r pkg}
+library(tidyverse)
+library(readxl)
+library(xlsx)
+library(here)
+library(lubridate)
+library(ggplot2)
+library(ggpubr)
+library(DT)
+library(vegan)
+library(ggrepel)
+library(MuMIn)
+library(glmulti)
+library(DHARMa)
+library(patchwork)
+library(correlation)
+library(see)
+library(ggraph)
+library(metafor)
+library(lme4)
+library(pander)
+library(jtools)
+```
+
+```{r}
+df <- read_csv(here::here("data/df_candidatas.csv"))
+
+diversidad_year <- read_csv(here::here("data/diversidad_by_year.csv"))
+riqueza_year <- read_csv(here::here("data/riqueza_by_year.csv"))
+
+dfs <- df %>% select(-c(den_mean:div_se))
+
+d <- inner_join(diversidad_year, dfs, by = "code") %>%
+  inner_join(riqueza_year) %>% 
+  select(-nombre) %>% 
+  rename(div = diversidad) %>% 
+  relocate(code, div, riq)
+
+climate_year <- read_csv(here::here("data/climate_year.csv")) %>% 
+  dplyr::select(code, year, p_anu_year, p_ver_year, t_anual_year = t_anual) 
+# - ojo según nuesta selección previa tenemos: 
+# - Pp_anual, t_anual, Pp_verano --> estas variables voy a coger una por año 
+
+m <- d %>% inner_join(climate_year) %>% 
+  dplyr::select(-Pp_anu, -t_anual, -Pp_ver) %>% 
+  rowwise() %>% 
+  mutate(FR_ARBOL = sum(FR_CONIF, FR_QUERC), 
+         yearF = as.factor(year))
+```
+
+
+# Explora y selecciona variables 
+```{r}
+theme_set(theme_minimal())
+
+mlong <- m %>% pivot_longer(TP_PEND:FR_ARBOL)
+
+mlong %>% ggplot(aes(x=value, y=div)) +
+  geom_point() + geom_smooth() + 
+  facet_wrap(~name, scales = "free_x") + 
+  ylab("Diversidad") + xlab("")
+
+mlong %>% ggplot(aes(x=value, y=riq)) +
+  geom_point() + geom_smooth() + 
+  facet_wrap(~name, scales = "free_x") + 
+  ylab("Riqueza") + xlab("")
+```
+
+## Correlaciones 
+```{r}
+co <- correlation((m %>% dplyr::select(-code, -year, -div, -riq, -yearF)))
+
+co %>% summary() %>% 
+  plot(size_point = .5, 
+       show_values = TRUE,
+       show_p = TRUE,
+       show_legend = FALSE,
+       size_text = 3.5) + 
+  theme(axis.text = element_text(size = 8))
+
+```
+
+## Evaluar presencia de arbolado: coniferas y quercíneas 
+
+1. Creamos una variable llamada FR_ARBOL = FR_CONIF + FR_QUERC 
+
+2. Analizar correlación entre variables
+  
+  - FR_CONIF y FR_QUERC (r = `r cor(m$FR_CONIF, m$FR_QUERC)`)
+  - FR_CONIF y DS_ARBOL (r = `r cor(m$FR_CONIF, m$DS_ARBOL)`)
+  - FR_QUERC y DS_ARBOL (r = `r cor(m$FR_QUERC, m$DS_ARBOL)`)
+  - FR_ARBOL y DS_ARBOL (r = `r cor(m$FR_ARBOL, m$DS_ARBOL)`)
+    
+3. Evalar relación entre variables:
+
+
+```{r}
+theme_set(theme_bw())
+
+(m %>% ggplot(aes(x=DS_ARBOL, y=FR_ARBOL)) + geom_point()) + 
+(m %>% ggplot(aes(x=DS_ARBOL, y=FR_QUERC)) + geom_point()) +
+(m %>% ggplot(aes(x=DS_ARBOL, y=FR_CONIF)) + geom_point())
+```
+
+En caso de querer dejar alguna variable de arbolado, dejaríamos la FR_ARBOL, pero esta variable está muy correlacionada con DS_ARBOL ($r > |.7|$), por lo tanto, nos quedamos con **DS_ARBOL** y descartamos **FR_QUERC** y **FR_CONIF**.
+
+## Evaluar variables de gradientes topográficos
+
+- Las variables TP_RSD_P y TP_SU_NO están muy correlacionadas (r = `r cor(m$TP_RSD_P, m$TP_SU_NO)`)
+
+```{r}
+(m %>% ggplot(aes(x=TP_RSD_P, y=TP_SU_NO)) + geom_point())
+```
+
+- Elegimos a **TP_RSD_P**, por ser una varible de mayor sentido biológico (cantidad de radiación que recibe)
+
+
+- Analizamos ahora TP_PEND. Esta variable aparece muy correlacionada con HIDRO_ITH (r = `r cor(m$TP_PEND, m$HIDRO_ITH)`) y con TP_RSH_V  (r = `r cor(m$TP_PEND, m$TP_RSH_V)`), aunque valores muy cercanos a <|.7|. Puede ser buena idea descartar TP_PEND. 
+
+## Evaluar elevación 
+
+- La elevación presenta alta correlación con la t_anual_year (r = `r cor(m$elev, m$t_anual_year)`).
+- Asímismo, la elevación presenta una correlación cercana al umbral (|.7|) con DS_ARBOL (r = `r cor(m$elev, m$DS_ARBOL)`) y con HIDRO_ITH (r = `r cor(m$elev, m$HIDRO_ITH)`).
+
+```{r}
+theme_set(theme_bw())
+
+(m %>% ggplot(aes(x=elev, y=t_anual_year)) + geom_point()) + 
+(m %>% ggplot(aes(x=elev, y=DS_ARBOL)) + geom_point()) +
+(m %>% ggplot(aes(x=elev, y=HIDRO_ITH)) + geom_point())
+```
+
+- Sin embargo, la elevación a priori es una covariable que nos interesa mantener, por lo que descartamos **t_anual_year**.  
+
+## Evaluar VIF
+```{r, echo=FALSE}
+#####################################################################
+#VIF FUNCTION.
+#To use:  corvif(YourDataFile)
+corvif <- function(dataz) {
+  dataz <- as.data.frame(dataz)
+  #correlation part
+  #cat("Correlations of the variables\n\n")
+  #tmp_cor <- cor(dataz,use="complete.obs")
+  #print(tmp_cor)
+  
+  #vif part
+  form    <- formula(paste("fooy ~ ",paste(strsplit(names(dataz)," "),collapse=" + ")))
+  dataz   <- data.frame(fooy=1,dataz)
+  lm_mod  <- lm(form,dataz)
+  
+  cat("\n\nVariance inflation factors\n\n")
+  print(myvif(lm_mod))
+}
+
+
+#Support function for corvif. Will not be called by the user
+myvif <- function(mod) {
+  v <- vcov(mod)
+  assign <- attributes(model.matrix(mod))$assign
+  if (names(coefficients(mod)[1]) == "(Intercept)") {
+    v <- v[-1, -1]
+    assign <- assign[-1]
+  } else warning("No intercept: vifs may not be sensible.")
+  terms <- labels(terms(mod))
+  n.terms <- length(terms)
+  if (n.terms < 2) stop("The model contains fewer than 2 terms")
+  if (length(assign) > dim(v)[1] ) {
+    diag(tmp_cor)<-0
+    if (any(tmp_cor==1.0)){
+      return("Sample size is too small, 100% collinearity is present")
+    } else {
+      return("Sample size is too small")
+    }
+  }
+  R <- cov2cor(v)
+  detR <- det(R)
+  result <- matrix(0, n.terms, 3)
+  rownames(result) <- terms
+  colnames(result) <- c("GVIF", "Df", "GVIF^(1/2Df)")
+  for (term in 1:n.terms) {
+    subs <- which(assign == term)
+    result[term, 1] <- det(as.matrix(R[subs, subs])) * det(as.matrix(R[-subs, -subs])) / detR
+    result[term, 2] <- length(subs)
+  }
+  if (all(result[, 2] == 1)) {
+    result <- data.frame(GVIF=result[, 1])
+  } else {
+    result[, 3] <- result[, 1]^(1/(2 * result[, 2]))
+  }
+  invisible(result)
+}
+#END VIF FUNCTIONS
+```
+
+```{r}
+# Selection via VIF
+myvars <- m %>% dplyr::select(-code, -year, -yearF, -div, -riq, 
+                              -FR_QUERC, -FR_CONIF, -TP_SU_NO, 
+                              -t_anual_year) %>% names()
+corvif(m[,myvars])
+```
+
+Efectivamente vemos altos valores de VIF para **TP_PEND** (la descartamos)
+
+```{r}
+myvars <- m %>% dplyr::select(-code, -year, -yearF, -div, -riq, 
+                              -FR_QUERC, -FR_CONIF, -TP_SU_NO, 
+                              -t_anual_year, -TP_PEND) %>% names()
+corvif(m[,myvars])
+```
+
+La siguente candidata a eliminar es DS_ARBOL, aunque dependerá del umbral que seleccionemos. Algunos autores hablan de VIF < 3, otros VIF < 5 y otros de VIF < 10. No obstante, antes vemos la posible relación con FR_ARBOL (r = `r cor(m$FR_ARBOL, m$DS_ARBOL)`), que es una variable derivada (combinada de FR_CONIF y FR_QUERC). Proponemos descartar FR_ARBOL. 
+
+```{r}
+myvars <- m %>% dplyr::select(-code, -year, -yearF, -div, -riq, 
+                              -FR_QUERC, -FR_CONIF, -TP_SU_NO, 
+                              -t_anual_year, -TP_PEND, -FR_ARBOL) %>% names()
+corvif(m[,myvars])
+```
+
+Como observamos ahora, no hay posibles problemas de colinealidad entre las candidatas predictoras. 
+
+> Por tanto tenemos seleccionadas las siguientes variables: 
+
+```{r}
+m %>% dplyr::select(-code, -year, -yearF, -div, -riq, 
+                    -FR_QUERC, -FR_CONIF, -TP_SU_NO, 
+                    -t_anual_year, -TP_PEND, -FR_ARBOL) %>% names()
+```
+
+```{r}
+nobs_var <- nrow(m)/ncol(m %>% dplyr::select(-code, -year, -yearF, -div, -riq, 
+                                             -FR_QUERC, -FR_CONIF, -TP_SU_NO, 
+                                             -t_anual_year, -TP_PEND, -FR_ARBOL))
+```
+
+Algunos hablan de tener entre 15 - 25 veces el numero de observaciones por cada covariable. Actualmente tenemos   
+`r nobs_var`
+
+# Modelización 
+
+```{r}
+# Define formula 
+f <- as.formula(
+  paste("riq", 
+      paste(
+        names(
+          m %>% 
+            dplyr::select(-code, -year, -yearF, -div, -riq, -FR_QUERC, -FR_CONIF, 
+                          -TP_SU_NO, -t_anual_year, -TP_PEND, -FR_ARBOL)),
+        collapse = "+"), 
+      sep = "~")
+)
+```
+
+Partimos de las siguientes variables potenciales para hacer la seleccion de modelos:
+
+```{r, echo=TRUE}
+f
+```
+
+## Aproximación modelo GLM Gaussian
+
+```{r, echo = TRUE}
+# automatic model selection 
+set.seed(1234)
+# fam <- "poisson"
+fam <- "gaussian"
+
+select_f <- glmulti(f, data = m,
+              level= 1, 
+              chunk = 1, chunks = 4, 
+              method = "ga", crit = "bic", 
+              family = fam, 
+              marginality = TRUE,
+              confsetsize = 5, 
+              plotty = FALSE, report = FALSE)
+
+# Summary best models 
+summary_f <- summary(select_f@objects[[1]]) 
+
+# Select best 5 models 
+# top5_models <- weightable(select_f)
+  
+f1 <- glm(select_f@formulas[[1]], family = fam, data = m)
+f2 <- glm(select_f@formulas[[2]], family = fam, data = m)
+f3 <- glm(select_f@formulas[[3]], family = fam, data = m)
+f4 <- glm(select_f@formulas[[4]], family = fam, data = m)
+f5 <- glm(select_f@formulas[[5]], family = fam, data = m)
+
+
+r2 <- function(mimodelo){round(((mimodelo$null.deviance - mimodelo$deviance) / mimodelo$null.deviance),3)}
+
+top5_table <- as.data.frame(model.sel(f1, f2, f3, f4, f5, rank = BIC)) %>% 
+    dplyr::select(-family) %>% 
+    mutate(model = 
+             c(f1$formula, f2$formula, f3$formula, f4$formula, f5$formula),
+           r2 = c(r2(f1), r2(f2), r2(f3), r2(f4), r2(f5))
+                  ) %>% 
+    relocate(model)
+
+write.csv(as.matrix(top5_table), file=here::here("data/mod_riq_selectionBIC.csv"))
+```
+
+- Analizamos si el modelo es válido
+
+```{r}
+f1.res <- simulateResiduals(f1, seed = 123, n=1000, plot=TRUE)
+```
+
+No parece haber problemas: 
+
+- test de dispersion 
+
+```{r}
+# Test dispersion
+testDispersion(f1.res)
+```
+
+- ¿homocedasticidad? 
+```{r}
+# Heterocedasticidad
+testQuantiles(f1.res)
+```
+
+
+Parece que no existen outliers y que no existe heterocedasticidad. Por lo tanto, no tengo que transformar las variables.
+
+
+### Lista de los mejores modelos seleccionados
+
+
+```{r}
+pander(as.matrix(top5_table))
+```
+
+
+- Como observamos que los delta son inferiores a 3 en los 5 primeros modelos, vamos a analizar la importancia de las variables predictoras
+
+```{r}
+importance(model.sel(f1, f2, f3, f4, f5))
+```
+
+Observamos que el modelo 1, tiene un valor predictivo alto, y la diferencia de añadir otras variables, no añade una mejora en la predicción del modelo, y si incrementa el número de parámetros, por lo que no se aconseja incluir esas variable. Así, nos quedamos con el modelo 1. 
+
+```{r, eval=FALSE, echo=FALSE}
+co <- correlation((m %>% dplyr::select(elev, FR_MATDE, HIDRO_ITH, TP_ES_OE, TP_RSH_V, p_anu_year, TP_RSD_P, p_ver_year)))
+
+
+co %>% summary() %>% 
+  plot(size_point = .5, 
+       show_values = TRUE,
+       show_p = TRUE,
+       show_legend = FALSE,
+       size_text = 3.5) + 
+  theme(axis.text = element_text(size = 8))
+
+```
+
+
+# Modelo seleccionado 
+"riq ~ 1 + FR_MATDE + TP_RSH_V + HIDRO_ITH + elev + TP_ES_OE + p_anu_year" 
+
+```{r}
+
+f1 <- glm(riq ~ 1 + FR_MATDE + TP_RSH_V + HIDRO_ITH + elev + TP_ES_OE + p_anu_year, family = "gaussian", data = m)
+f1.res <- simulateResiduals(f1, seed = 123, n=1000, plot=TRUE)
+```
+
+## Visualización 
+
+```{r}
+library(visreg)
+ytitle <- "Riqueza"
+
+visreg(f1, ylab = ytitle, "FR_MATDE") 
+visreg(f1, ylab = ytitle, "TP_RSH_V")
+visreg(f1, ylab = ytitle, "HIDRO_ITH")
+visreg(f1, ylab = ytitle, "elev")
+visreg(f1, ylab = ytitle, "TP_ES_OE")
+visreg(f1, ylab = ytitle, "p_anu_year")
+
+```
+
+## Parámetros 
+
+```{r}
+library(tab)
+ms <- f1
+tc <- tab::tabglm(ms, columns = c("beta.se",  "test", "p"), decimals = 4) 
+names(tc) <- c("Variable", "Estimate", "Zvalue", "pvalue") 
+  
+tablita_auxiliar <- data.frame(
+    Variable = c("DegreeFreedom", "AIC", "BIC", "DevianceExplained"), 
+    Estimate = as.character(c(df.residual(ms), round(AIC(ms),0), round(BIC(ms), 0), 
+                              round( ((ms$null.deviance - ms$deviance) / ms$null.deviance),3))),
+    Zvalue = "", pvalue = "")
+  
+tc <- bind_rows(tc, tablita_auxiliar)
+
+write.csv(tc, here::here("data/mod_riq_coefficients.csv"))
+```
+
+
+```{r}
+knitr::kable(tc)
+```
+
+```{r}
+set_summ_defaults(digits = 4)
+summ(ms, digits = 4)
+ee <- summ(ms, digits = 4)
+write_csv(as.data.frame(round(ee$coeftable,4)), here::here("data/mod_riq_coefficients_SE.csv"))
+```
+

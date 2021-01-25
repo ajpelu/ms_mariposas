@@ -49,6 +49,7 @@ library(ggraph)
 library(metafor)
 library(lme4)
 library(pander)
+library(jtools)
 ```
 
 ```{r}
@@ -384,11 +385,14 @@ f3 <- glm(select_f@formulas[[3]], family = fam, data = m)
 f4 <- glm(select_f@formulas[[4]], family = fam, data = m)
 f5 <- glm(select_f@formulas[[5]], family = fam, data = m)
 
+r2 <- function(mimodelo){round(((mimodelo$null.deviance - mimodelo$deviance) / mimodelo$null.deviance),3)}
 
 top5_table <- as.data.frame(model.sel(f1, f2, f3, f4, f5, rank = BIC)) %>% 
     dplyr::select(-family) %>% 
     mutate(model = 
-             c(f1$formula, f2$formula, f3$formula, f4$formula, f5$formula)) %>% 
+             c(f1$formula, f2$formula, f3$formula, f4$formula, f5$formula),
+           r2 = c(r2(f1), r2(f2), r2(f3), r2(f4), r2(f5))
+                  ) %>% 
     relocate(model)
 
 write.csv(as.matrix(top5_table), file=here::here("data/mod_den_sqrt_selectionBIC.csv"))
@@ -396,7 +400,7 @@ write.csv(as.matrix(top5_table), file=here::here("data/mod_den_sqrt_selectionBIC
 
 - Lista de los mejores modelos seleccionados
 ```{r}
-pander(top5_table)
+pander(as.matrix(top5_table))
 ```
 
 - Analizamos si el modelo es válido
@@ -464,6 +468,16 @@ write.csv(tc, here::here("data/mod_den_sqrt_coefficients.csv"))
 ```{r}
 knitr::kable(tc)
 ```
+
+
+```{r}
+set_summ_defaults(digits = 4)
+summ(ms, digits = 4)
+ee <- summ(ms, digits = 4)
+write_csv(as.data.frame(round(ee$coeftable,4)), here::here("data/mod_den_sqrt_coefficients_SE.csv"))
+```
+
+
 
 
 ```{r, eval = FALSE}
@@ -580,6 +594,10 @@ df_candidato <- df %>%
   inner_join(den) %>% 
   inner_join(div) 
 write_csv(df_candidato, here::here("data/df_candidatas.csv"))
+
+
+
+
 ```
 
 

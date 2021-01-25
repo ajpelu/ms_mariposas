@@ -73,7 +73,6 @@ df <- d %>% dplyr::select(id_visita, transecto, nombre, longitud, tramo, fecha, 
   mutate(longitud = as.numeric(longitud)) 
 
 # Hemos quitado 2018 para todos los transectos excepto 45, 46, 48 y 49 
-
 dfno2018 <- df %>% 
   filter(!(year == 2018 & !transecto %in% c(45,46,48,49)))
 
@@ -233,7 +232,36 @@ for (y in years){
 }
 
 rownames(out_h) <- NULL
-diversidad <- out_h %>% mutate(year = as.numeric(substring(year,2)))
+diversidad <- out_h %>% 
+  mutate(year = as.numeric(substring(year,2)),
+         code = recode(nombre, 
+                       "Aguas Verdes" = "AV",
+                        "Barranco de San Juan"="BSJ",
+                       "BMS_ DurcaL"="DU",
+                       "BMS_Laguna"="LP",
+                       "BMS_Pitres"="PI",
+                       "BMS_Turbera"="TP",
+                       "Campo Otero"="CO",
+                       "Carihuela"="CAR",
+                       "Cauchiles"="CAU",
+                       "Hoya Mora"="HM",
+                       "Hoya Mora Fen-Marip"="HMF",
+                       "La Fabriquilla"="FA",
+                       "Laguna Seca"="LS",
+                       "Las Catifas"="CA",
+                       "Las Sabinas"="SA",
+                       "Loma papeles bajo"="PB",
+                       "Los Praillos"="PR",
+                       "Matas verdes"="MV",
+                       "Papeles alto"="PA",
+                       "Purche"="PU",
+                       "Robledal dilar"="DI"), 
+         diversidad = na_if(diversidad, 0))
+
+# Ojo en el cómputo de diversidad aparecen años y transectos con 0. Creo que es un error. Los dejo con NA 
+
+write_csv(diversidad, here::here("data/diversidad_by_year.csv"))
+
 
 diversidad_avg <- diversidad %>% 
   group_by(nombre) %>% 
@@ -245,6 +273,53 @@ diversidad_avg <- diversidad %>%
 
 write_csv(diversidad_avg, here::here("data/diversidad_avg.csv"))
 ```
+
+
+
+
+```{r}
+# Richness 
+# ojo hemos usado solo los taxa determinados 
+
+riq <- dfno2018 %>% 
+  filter(!(especie %in% taxanodeterminados)) %>% 
+  # filter(year != 2018) %>% 
+  # filter(!year %in% c(2012, 2013)) %>% 
+  mutate(sp = str_replace(especie, " ", ".")) %>% 
+  group_by(nombre, year) %>% 
+  summarise(n_ind = unique(sp)) %>% 
+  filter(nombre != "Hoya Mora Fen-Marip") %>% 
+  group_by(nombre, year) %>% 
+  count() %>% 
+  mutate(
+    code = recode(nombre, 
+                    "Aguas Verdes" = "AV",
+                    "Barranco de San Juan"="BSJ",
+                    "BMS_ DurcaL"="DU",
+                    "BMS_Laguna"="LP",
+                    "BMS_Pitres"="PI",
+                    "BMS_Turbera"="TP",
+                    "Campo Otero"="CO",
+                    "Carihuela"="CAR",
+                    "Cauchiles"="CAU",
+                    "Hoya Mora"="HM",
+                    "Hoya Mora Fen-Marip"="HMF",
+                    "La Fabriquilla"="FA",
+                    "Laguna Seca"="LS",
+                    "Las Catifas"="CA",
+                    "Las Sabinas"="SA",
+                    "Loma papeles bajo"="PB",
+                    "Los Praillos"="PR",
+                    "Matas verdes"="MV",
+                    "Papeles alto"="PA",
+                    "Purche"="PU",
+                    "Robledal dilar"="DI"))
+
+write_csv(riq, here::here("data/riqueza_by_year.csv"))
+```
+
+
+
 
 ```{r}
 DT::datatable(diversidad_avg)

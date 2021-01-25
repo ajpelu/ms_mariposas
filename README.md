@@ -18,6 +18,8 @@ Todos los datos/análisis son preeliminares.
 
 - [Modelización de la densidad de mariposas](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/modelo_densidad.html). Ver tambien en el archivo [`modelo_densidad.html`](modelo_densidad.html)
 
+- [Modelización de la riqueza de especies](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/modelo_diversidad.html). Ver tambien en el archivo [`modelo_diversidad.html`](modelo_diversidad.html)
+
 
 ### Datos
 En la carpeta [`/data/`](/data/) están los datos de: 
