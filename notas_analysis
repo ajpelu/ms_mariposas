@@ -1,0 +1,42 @@
+# Variable selection
+We computed the correlation matrix among predictors, and used a hierarchical cluster analysis (hclust R function) to group predictors according their mutual correlation by setting the maximum correlation at 0.5 Pearson’s index.
+
+We identified nine strongly-correlated groups: one related with potential radiation, and eight groups associated with measures of precipitation, temperature, and elevation (Fig. S1). We generated Biserial correlation models (Kraemer, 2006), a special case of Pearson correlation in which one variable is quantitative and the other variable is binomial, to investigate relationships between environmental predictors and the saguaro distribution.
+
+For each group identified by hclust, we selected the predictor that best correlated with the diversity and abundance values. Finally, we used variance inflation factor analysis (VIF) to minimize collinearity among predictors. We considered values of VIF above five as an evidence of collinearity (Heiberger & Holland, 2004). The selected variables were: ...
+
+
+annual mean temperature, max temperature of warmest month, mean temperature of wettest quarter, annual precipitation, precipitation seasonality, topographic wetness index, topographic openness index, and potential income radiation.
+
+
+
+Mira esto:
+https://www.researchgate.net/publication/202253422_Assessing_habitatlandscape_predictors_of_bird_diversity_in_managed_deciduous_forests_A_seasonal_and_guild-based_approach
+https://www.tallgrassprairiecenter.org/sites/default/files/myers_et_al-2015-journal_of_applied_ecology.pdf
+https://coreybradshaw.files.wordpress.com/2011/03/mellin-et-al-2010-glob-ecol-biogeogr.pdf
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6151114/
+
+  http://biodiversos.org/wp-content/uploads/2017/01/Virgos_et_al_2010_Anim_Biol.pdf
+
+
+
+Th e fi rst spatial scale was analyzed applying a traditional approach based on a regression-like Generalized Linear Model (GLM), where the dependent variable was the
+occurrence frequency index for the entire survey route and the average of the variables
+measured or estimated in the fi eld were predictors. A model with Poisson errors and
+a log link function was employed (MacCullagh and Nelder, 1989) and model selection
+was performed by backward elimination. In order to avoid multicollinearity problems
+between predictors, we previously selected a subset of predictors with no signifi cant
+correlations among them. Although some caution has been expressed about the use of
+stepwise procedures to select the best models (e.g. Burnham and Anderson, 2002 ;
+                                               Graham, 2003 ), a recent simulation study showed that stepwise methods performed
+similarly to novel algorithms for subset selection (Murtaugh, 2009 ). Despite we used
+the most traditional stepwise procedure, we checked if additional dropped variables
+can support well the data by using AICc as criterion to select variables and models, and
+we did not found signifi cant diff erences with the models obtained by using stepwise
+methods.
+
+
+
+Selection was accomplished by a matrix correlation with all possible correlations among predictors,
+and between predictors and the abundance and richness.
+

@@ -313,7 +313,8 @@ riq <- dfno2018 %>%
                     "Matas verdes"="MV",
                     "Papeles alto"="PA",
                     "Purche"="PU",
-                    "Robledal dilar"="DI"))
+                    "Robledal dilar"="DI")) %>% 
+  rename(riq = n)
 
 write_csv(riq, here::here("data/riqueza_by_year.csv"))
 ```

@@ -33,6 +33,6 @@ Matrix
 metafor
 lme4
 pander
+jtools
 visreg
 tab
-jtools

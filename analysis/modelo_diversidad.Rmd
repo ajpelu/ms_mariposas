@@ -278,7 +278,7 @@ f <- as.formula(
         names(
           m %>% 
             dplyr::select(-code, -year, -yearF, -div, -riq, -FR_QUERC, -FR_CONIF, 
-                          -TP_SU_NO, -t_anual_year, -TP_PEND, -FR_ARBOL)),
+                          -TP_SU_NO, -t_anual_year, -p_anu_year, -p_ver_year, -TP_PEND, -FR_ARBOL)),
         collapse = "+"), 
       sep = "~")
 )
@@ -390,11 +390,11 @@ co %>% summary() %>%
 
 
 # Modelo seleccionado 
-"riq ~ 1 + FR_MATDE + TP_RSH_V + HIDRO_ITH + elev + TP_ES_OE + p_anu_year" 
+"riq ~ 1 + FR_MATDE + TP_RSH_V + HIDRO_ITH + elev + TP_ES_OE" 
 
 ```{r}
 
-f1 <- glm(riq ~ 1 + FR_MATDE + TP_RSH_V + HIDRO_ITH + elev + TP_ES_OE + p_anu_year, family = "gaussian", data = m)
+f1 <- glm(riq ~ 1 + FR_MATDE + TP_RSH_V + HIDRO_ITH + elev + TP_ES_OE, family = "gaussian", data = m)
 f1.res <- simulateResiduals(f1, seed = 123, n=1000, plot=TRUE)
 ```
 
@@ -409,7 +409,6 @@ visreg(f1, ylab = ytitle, "TP_RSH_V")
 visreg(f1, ylab = ytitle, "HIDRO_ITH")
 visreg(f1, ylab = ytitle, "elev")
 visreg(f1, ylab = ytitle, "TP_ES_OE")
-visreg(f1, ylab = ytitle, "p_anu_year")
 
 ```
 
