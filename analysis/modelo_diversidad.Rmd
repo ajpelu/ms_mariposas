@@ -339,7 +339,7 @@ write.csv(as.matrix(top5_table), file=here::here("data/mod_riq_selectionBIC.csv"
 f1.res <- simulateResiduals(f1, seed = 123, n=1000, plot=TRUE)
 ```
 
-No parece haber problemas: 
+
 
 - test de dispersion 
 
@@ -352,6 +352,89 @@ testDispersion(f1.res)
 ```{r}
 # Heterocedasticidad
 testQuantiles(f1.res)
+```
+
+- Parece que hay algun problema de heterocedasticidad
+- Aplicamos transformación de los datos 
+
+
+## Aproximación modelo GLM Gaussian con variables transformadas 
+
+Transformamos las variables del siguiente modo: 
+
+- riq_sqrt como $\sqrt{riq}$ 
+- FR_MATDELog = log(FRMATDE + 2)
+- DS_ARBOLLog = log(DS_ARBOL + 1)
+
+
+```{r}
+m <- m %>% 
+  mutate(FR_MATDELog = log(FR_MATDE + 2),
+         DS_ARBOLLog = log(DS_ARBOL + 1), 
+         riq_sqrt = sqrt(riq))
+```
+
+```{r}
+# Define formula 
+ft <- as.formula(
+  paste("riq_sqrt", 
+      paste(
+        names(
+          m %>% 
+            dplyr::select(-code, -year, -yearF, -div, -riq, -riq_sqrt, -FR_QUERC, -FR_CONIF, 
+                          -TP_SU_NO, -t_anual_year, -p_anu_year, -p_ver_year, -TP_PEND, -FR_ARBOL, -FR_MATDE, -DS_ARBOL)),
+        collapse = "+"), 
+      sep = "~")
+)
+```
+
+
+
+```{r}
+# automatic model selection 
+set.seed(1234)
+#fam <- "poisson"
+fam <- "gaussian"
+
+select_f <- glmulti(ft, data = m,
+              level= 1, 
+              chunk = 1, chunks = 4, 
+              method = "ga", crit = "bic", 
+              family = fam, 
+              marginality = TRUE,
+              confsetsize = 5, 
+              plotty = FALSE, report = FALSE)
+
+# Summary best models 
+summary_f <- summary(select_f@objects[[1]]) 
+
+# Select best 5 models 
+# top5_models <- weightable(select_f)
+  
+f1 <- glm(select_f@formulas[[1]], family = fam, data = m)
+f2 <- glm(select_f@formulas[[2]], family = fam, data = m)
+f3 <- glm(select_f@formulas[[3]], family = fam, data = m)
+f4 <- glm(select_f@formulas[[4]], family = fam, data = m)
+f5 <- glm(select_f@formulas[[5]], family = fam, data = m)
+
+
+r2 <- function(mimodelo){round(((mimodelo$null.deviance - mimodelo$deviance) / mimodelo$null.deviance),3)}
+
+top5_table <- as.data.frame(model.sel(f1, f2, f3, f4, f5, rank = BIC)) %>% 
+    dplyr::select(-family) %>% 
+    mutate(model = 
+             c(f1$formula, f2$formula, f3$formula, f4$formula, f5$formula),
+           r2 = c(r2(f1), r2(f2), r2(f3), r2(f4), r2(f5))
+                  ) %>% 
+    relocate(model)
+
+
+write.csv(as.matrix(top5_table), file=here::here("data/mod_riq_sqrt_selectionBIC.csv"))
+```
+
+
+```{r}
+ft1.res <- simulateResiduals(f1, seed = 123, n=1000, plot=TRUE)
 ```
 
 
@@ -390,25 +473,26 @@ co %>% summary() %>%
 
 
 # Modelo seleccionado 
-"riq ~ 1 + FR_MATDE + TP_RSH_V + HIDRO_ITH + elev + TP_ES_OE" 
+"riq_sqrt ~ 1 + TP_RSH_V + HIDRO_ITH + elev + FR_MATDELog + DS_ARBOLLog"
 
 ```{r}
-
-f1 <- glm(riq ~ 1 + FR_MATDE + TP_RSH_V + HIDRO_ITH + elev + TP_ES_OE, family = "gaussian", data = m)
-f1.res <- simulateResiduals(f1, seed = 123, n=1000, plot=TRUE)
+f1t <- glm(riq_sqrt ~ 1 + TP_RSH_V + HIDRO_ITH + elev + FR_MATDELog + DS_ARBOLLog, 
+          family = "gaussian", data = m)
 ```
 
 ## Visualización 
 
 ```{r}
 library(visreg)
-ytitle <- "Riqueza"
+ytitle <- expression(sqrt ("riqueza"))
+lab_FR_MATDELog <- expression(log("FR_MATDE + 2"))
+lab_DS_ARBOLLog <- expression(log("DS_ARBOL + 1"))
 
-visreg(f1, ylab = ytitle, "FR_MATDE") 
-visreg(f1, ylab = ytitle, "TP_RSH_V")
-visreg(f1, ylab = ytitle, "HIDRO_ITH")
-visreg(f1, ylab = ytitle, "elev")
-visreg(f1, ylab = ytitle, "TP_ES_OE")
+visreg(f1t, ylab = ytitle, "TP_RSH_V")
+visreg(f1t, ylab = ytitle, "HIDRO_ITH", xlab = "HIDRO_ITH")
+visreg(f1t, ylab = ytitle, "elev")
+visreg(f1t, ylab = ytitle, "FR_MATDELog", xlab = lab_FR_MATDELog) 
+visreg(f1t, ylab = ytitle, "DS_ARBOLLog", xlab = lab_DS_ARBOLLog)
 
 ```
 
@@ -416,7 +500,7 @@ visreg(f1, ylab = ytitle, "TP_ES_OE")
 
 ```{r}
 library(tab)
-ms <- f1
+ms <- f1t
 tc <- tab::tabglm(ms, columns = c("beta.se",  "test", "p"), decimals = 4) 
 names(tc) <- c("Variable", "Estimate", "Zvalue", "pvalue") 
   
@@ -428,7 +512,7 @@ tablita_auxiliar <- data.frame(
   
 tc <- bind_rows(tc, tablita_auxiliar)
 
-write.csv(tc, here::here("data/mod_riq_coefficients.csv"))
+write.csv(tc, here::here("data/mod_riq_sqrt_coefficients.csv"))
 ```
 
 
@@ -440,6 +524,6 @@ knitr::kable(tc)
 set_summ_defaults(digits = 4)
 summ(ms, digits = 4)
 ee <- summ(ms, digits = 4)
-write_csv(as.data.frame(round(ee$coeftable,4)), here::here("data/mod_riq_coefficients_SE.csv"))
+write_csv(as.data.frame(round(ee$coeftable,4)), here::here("data/mod_riq_sqrt_coefficients_SE.csv"))
 ```
 
