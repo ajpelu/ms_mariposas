@@ -14,11 +14,11 @@ Todos los datos/análisis son preeliminares.
 
 - [Preparación de los datos de abundancia y diversidad](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/preparaDatos_mariposas.html). Ver tambien en el archivo [`/analysis/preparaDatos_mariposas.html`](/analysis/preparaDatos_mariposas.html)
 
-- [Exploración y selección de los datos de variables ambientales](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/explora_variables_ambientales.html). Ver tambien en el archivo [`explora_variables_ambientales.html`](explora_variables_ambientales.html)
+- [Exploración y selección de los datos de variables ambientales](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/explora_variables_ambientales.html). Ver tambien en el archivo [`/analysis/explora_variables_ambientales.html`](/analysis/explora_variables_ambientales.html)
 
-- [Modelización de la densidad de mariposas](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/modelo_densidad.html). Ver tambien en el archivo [`modelo_densidad.html`](modelo_densidad.html)
+- [Modelización de la densidad de mariposas](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/modelo_densidad.html). Ver tambien en el archivo [`/analysis/modelo_densidad.html`](/analysis/modelo_densidad.html)
 
-- [Modelización de la riqueza de especies](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/modelo_diversidad.html). Ver tambien en el archivo [`modelo_diversidad.html`](modelo_diversidad.html)
+- [Modelización de la riqueza de especies](https://rawcdn.githack.com/ajpelu/ms_mariposas/master/analysis/modelo_diversidad.html). Ver tambien en el archivo [`/analysis/modelo_diversidad.html`](/analysis/modelo_diversidad.html)
 
 
 ### Datos
