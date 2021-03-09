@@ -276,7 +276,6 @@ write_csv(diversidad_avg, here::here("data/diversidad_avg.csv"))
 
 
 
-
 ```{r}
 # Richness 
 # ojo hemos usado solo los taxa determinados 
@@ -289,8 +288,6 @@ riq <- dfno2018 %>%
   group_by(nombre, year) %>% 
   summarise(n_ind = unique(sp)) %>% 
   filter(nombre != "Hoya Mora Fen-Marip") %>% 
-  group_by(nombre, year) %>% 
-  count() %>% 
   mutate(
     code = recode(nombre, 
                     "Aguas Verdes" = "AV",
@@ -314,17 +311,105 @@ riq <- dfno2018 %>%
                     "Papeles alto"="PA",
                     "Purche"="PU",
                     "Robledal dilar"="DI")) %>% 
+  group_by(code, year) %>% 
+  count() %>% 
   rename(riq = n)
 
 write_csv(riq, here::here("data/riqueza_by_year.csv"))
 ```
 
-
-
-
 ```{r}
 DT::datatable(diversidad_avg)
 ```
+
+
+## Curvas rarefaccion
+```{r}
+ra <- dfno2018 %>% 
+  filter(!(especie %in% taxanodeterminados)) %>% 
+  # filter(year != 2018) %>% 
+  # filter(!year %in% c(2012, 2013)) %>% 
+  mutate(sp = str_replace(especie, " ", ".")) %>% 
+  group_by(nombre, year) %>% 
+  summarise(n_ind = unique(sp)) %>% 
+  filter(nombre != "Hoya Mora Fen-Marip") %>% 
+  mutate(
+    code = recode(nombre, 
+                    "Aguas Verdes" = "AV",
+                    "Barranco de San Juan"="BSJ",
+                    "BMS_ DurcaL"="DU",
+                    "BMS_Laguna"="LP",
+                    "BMS_Pitres"="PI",
+                    "BMS_Turbera"="TP",
+                    "Campo Otero"="CO",
+                    "Carihuela"="CAR",
+                    "Cauchiles"="CAU",
+                    "Hoya Mora"="HM",
+                    "Hoya Mora Fen-Marip"="HMF",
+                    "La Fabriquilla"="FA",
+                    "Laguna Seca"="LS",
+                    "Las Catifas"="CA",
+                    "Las Sabinas"="SA",
+                    "Loma papeles bajo"="PB",
+                    "Los Praillos"="PR",
+                    "Matas verdes"="MV",
+                    "Papeles alto"="PA",
+                    "Purche"="PU",
+                    "Robledal dilar"="DI")) 
+
+ra_DI <- ra %>% filter(code == "DI") %>% ungroup() %>% dplyr::select(-nombre, -code) %>% 
+  mutate(n = 1) %>% 
+  pivot_wider(names_from = n_ind, values_from = n) %>% 
+  column_to_rownames("year")
+  
+ra_DI[is.na(ra_DI)] <- 0
+
+curvas <- data.frame()
+
+for (i in unique(ra$code)){
+  aux <- ra %>% 
+    filter(code == i) %>% 
+    ungroup() %>% 
+    dplyr::select(-nombre, -code) %>% 
+    mutate(n = 1) %>% 
+    pivot_wider(names_from = n_ind, values_from = n, values_fill = 0) %>% 
+    column_to_rownames("year")
+  
+  aux_specaccum <- vegan::specaccum(aux, method = "collector")
+  
+  aux2 <- aux_specaccum$richness %>% 
+    as.data.frame() %>% 
+    rename(richness = '.') %>% 
+    rownames_to_column(var = "year") %>% 
+    mutate(code = i)
+    
+  curvas <- rbind(curvas, aux2)
+}
+
+umbrales <- curvas %>% group_by(code) %>% 
+  summarise(umbral_riqueza = max(richness)*.80)
+
+write_csv(umbrales, here::here("data/umbral80.csv"))
+
+curvas_plot <- curvas %>% 
+  ggplot(aes(x=year, y=richness, group=code)) + geom_line() +
+  # geom_vline(aes(xintercept = "2015", group=code), color = "red") + 
+  geom_hline(data=umbrales, aes(yintercept=umbral_riqueza), color = "blue") + 
+  facet_wrap(~code, scales= "free_y") +
+  #expand_limits(y=0) + 
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle=90)
+  ) 
+  
+ggsave(here::here("figs/curvas_plot.pdf"),
+       device = "pdf",
+       width = 8, height = 6)
+curvas_plot
+dev.off()
+
+```
+
 
 ## Variación de la diversidad con la elevación
 

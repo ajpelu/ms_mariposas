@@ -70,12 +70,17 @@ climate_year <- read_csv(here::here("data/climate_year.csv")) %>%
 
 ```
 
+- Solamente seleccionamos años 2014, 2015, 2016, 2017, 2019
+
 ```{r}
+yselected <- c(2014, 2015, 2016, 2017, 2019)
+
 m <- d %>% inner_join(climate_year) %>% 
   dplyr::select(-Pp_anu, -t_anual, -Pp_ver) %>% 
   rowwise() %>% 
   mutate(FR_ARBOL = sum(FR_CONIF, FR_QUERC), 
-         yearF = as.factor(year))
+         yearF = as.factor(year)) %>% 
+    filter(year %in% yselected)
 ```
 
 # Explora y selecciona variables 
@@ -244,11 +249,11 @@ Como observamos ahora, no hay posibles problemas de colinealidad entre las candi
 > Por tanto tenemos seleccionadas las siguientes variables: 
 
 ```{r}
-m %>% dplyr::select(-code, -year, -yearF, -den, -FR_QUERC, -FR_CONIF, -TP_SU_NO, -elev, -TP_PEND, -FR_ARBOL) %>% names()
+m %>% dplyr::select(-code, -year, -yearF, -den, -FR_QUERC, -FR_CONIF, -TP_SU_NO, -elev, -TP_PEND, -FR_ARBOL, -p_anu_year, -p_ver_year) %>% names()
 ```
 
 ```{r}
-nobs_var <- nrow(m)/ncol(m %>% dplyr::select(-code, -year, -yearF, -den, -FR_QUERC, -FR_CONIF, -TP_SU_NO, -elev, -TP_PEND, -FR_ARBOL))
+nobs_var <- nrow(m)/ncol(m %>% dplyr::select(-code, -year, -yearF, -den, -FR_QUERC, -FR_CONIF, -TP_SU_NO, -elev, -TP_PEND, -FR_ARBOL, -p_anu_year, -p_ver_year))
 ```
 
 Algunos hablan de tener entre 15 - 25 veces el numero de observaciones por cada covariable. Actualmente tenemos   
@@ -258,12 +263,12 @@ Algunos hablan de tener entre 15 - 25 veces el numero de observaciones por cada 
 
 ```{r}
 # Define formula 
-f <- as.formula(
+fden <- as.formula(
   paste("den", 
       paste(
         names(
           m %>% 
-            dplyr::select(-code, -year, -yearF, -den, -FR_QUERC, -FR_CONIF, -TP_SU_NO, -elev, -TP_PEND, -FR_ARBOL)),
+            dplyr::select(-code, -year, -yearF, -den, -FR_QUERC, -FR_CONIF, -TP_SU_NO, -elev, -TP_PEND, -FR_ARBOL, -p_anu_year, -p_ver_year)),
         collapse = "+"), 
       sep = "~")
 )
@@ -272,7 +277,7 @@ f <- as.formula(
 Partimos de las siguientes variables potenciales para hacer la seleccion de modelos:
 
 ```{r, echo=TRUE}
-f
+fden
 ```
 
 ## Aproximación modelo GLM Gaussian
@@ -283,7 +288,7 @@ set.seed(1234)
 # fam <- "poisson"
 fam <- "gaussian"
 
-select_f <- glmulti(f, data = m,
+select_fden <- glmulti(fden, data = m,
               level= 1, 
               chunk = 1, chunks = 4, 
               method = "ga", crit = "bic", 
@@ -293,31 +298,31 @@ select_f <- glmulti(f, data = m,
               plotty = FALSE, report = FALSE)
 
 # Summary best models 
-summary_f <- summary(select_f@objects[[1]]) 
+summary_fden <- summary(select_fden@objects[[1]]) 
 
 # Select best 5 models 
 # top5_models <- weightable(select_f)
   
-f1 <- glm(select_f@formulas[[1]], family = fam, data = m)
-f2 <- glm(select_f@formulas[[2]], family = fam, data = m)
-f3 <- glm(select_f@formulas[[3]], family = fam, data = m)
-f4 <- glm(select_f@formulas[[4]], family = fam, data = m)
-f5 <- glm(select_f@formulas[[5]], family = fam, data = m)
+fden1 <- glm(select_fden@formulas[[1]], family = fam, data = m)
+fden2 <- glm(select_fden@formulas[[2]], family = fam, data = m)
+fden3 <- glm(select_fden@formulas[[3]], family = fam, data = m)
+fden4 <- glm(select_fden@formulas[[4]], family = fam, data = m)
+fden5 <- glm(select_fden@formulas[[5]], family = fam, data = m)
 
 
-top5_table <- as.data.frame(model.sel(f1, f2, f3, f4, f5, rank = BIC)) %>% 
+top5_table_fden <- as.data.frame(model.sel(fden1, fden2, fden3, fden4, fden5, rank = BIC)) %>% 
     dplyr::select(-family) %>% 
     mutate(model = 
-             c(f1$formula, f2$formula, f3$formula, f4$formula, f5$formula)) %>% 
+             c(fden1$formula, fden2$formula, fden3$formula, fden4$formula, fden5$formula)) %>% 
     relocate(model)
 
-write.csv(as.matrix(top5_table), file=here::here("data/mod_den_selectionBIC.csv"))
+write.csv(as.matrix(top5_table_fden), file=here::here("data/mod_den_selectionBIC.csv"))
 ```
 
 - Analizamos si el modelo es válido
 
 ```{r}
-f1.res <- simulateResiduals(f1, seed = 123, n=1000, plot=TRUE)
+fden1.res <- simulateResiduals(fden1, seed = 123, n=1000, plot=TRUE)
 ```
 
 Parece que existen outliers y que existe heterocedasticidad. 
@@ -346,12 +351,12 @@ m <- m %>%
 
 
 ```{r}
-f <- as.formula(
+fdent <- as.formula(
   paste("den_sqrt", 
       paste(
         names(
           m %>% 
-            dplyr::select(-code, -year, -yearF, -den, -den_sqrt, -FR_QUERC, -FR_CONIF, -TP_SU_NO, -elev, -TP_PEND, -FR_ARBOL, -FR_MATDE, -DS_ARBOL)),
+            dplyr::select(-code, -year, -yearF, -den, -den_sqrt, -FR_QUERC, -FR_CONIF, -TP_SU_NO, -elev, -TP_PEND, -FR_ARBOL, -FR_MATDE, -DS_ARBOL, -p_anu_year, -p_ver_year)),
         collapse = "+"), 
       sep = "~")
 )
@@ -364,7 +369,7 @@ set.seed(1234)
 # fam <- "poisson"
 fam <- "gaussian"
 
-select_f <- glmulti(f, data = m,
+select_fdent <- glmulti(fdent, data = m,
               level= 1, 
               chunk = 1, chunks = 4, 
               method = "ga", crit = "bic", 
@@ -374,28 +379,28 @@ select_f <- glmulti(f, data = m,
               plotty = FALSE, report = FALSE)
 
 # Summary best models 
-summary_f <- summary(select_f@objects[[1]]) 
+summary_fdent <- summary(select_fdent@objects[[1]]) 
 
 # Select best 5 models 
 # top5_models <- weightable(select_f)
   
-f1 <- glm(select_f@formulas[[1]], family = fam, data = m)
-f2 <- glm(select_f@formulas[[2]], family = fam, data = m)
-f3 <- glm(select_f@formulas[[3]], family = fam, data = m)
-f4 <- glm(select_f@formulas[[4]], family = fam, data = m)
-f5 <- glm(select_f@formulas[[5]], family = fam, data = m)
+fdent1 <- glm(select_fdent@formulas[[1]], family = fam, data = m)
+fdent2 <- glm(select_fdent@formulas[[2]], family = fam, data = m)
+fdent3 <- glm(select_fdent@formulas[[3]], family = fam, data = m)
+fdent4 <- glm(select_fdent@formulas[[4]], family = fam, data = m)
+fdent5 <- glm(select_fdent@formulas[[5]], family = fam, data = m)
 
 r2 <- function(mimodelo){round(((mimodelo$null.deviance - mimodelo$deviance) / mimodelo$null.deviance),3)}
 
-top5_table <- as.data.frame(model.sel(f1, f2, f3, f4, f5, rank = BIC)) %>% 
+top5_table_fdent <- as.data.frame(model.sel(fdent1, fdent2, fdent3, fdent4, fdent5, rank = BIC)) %>% 
     dplyr::select(-family) %>% 
     mutate(model = 
-             c(f1$formula, f2$formula, f3$formula, f4$formula, f5$formula),
-           r2 = c(r2(f1), r2(f2), r2(f3), r2(f4), r2(f5))
+             c(fdent1$formula, fdent2$formula, fdent3$formula, fdent4$formula, fdent5$formula),
+           r2 = c(r2(fdent1), r2(fdent2), r2(fdent3), r2(fdent4), r2(fdent5))
                   ) %>% 
     relocate(model)
 
-write.csv(as.matrix(top5_table), file=here::here("data/mod_den_sqrt_selectionBIC.csv"))
+write.csv(as.matrix(top5_table_fdent), file=here::here("data/mod_den_sqrt_selectionBIC.csv"))
 ```
 
 - Lista de los mejores modelos seleccionados
@@ -405,7 +410,7 @@ pander(as.matrix(top5_table))
 
 - Analizamos si el modelo es válido
 ```{r}
-f1.res <- simulateResiduals(f1, seed = 123, n=1000, plot=TRUE)
+fdent1.res <- simulateResiduals(fdent1, seed = 123, n=1000, plot=TRUE)
 ```
 
 No parece haber problemas: 
@@ -414,22 +419,21 @@ No parece haber problemas:
 
 ```{r}
 # Test dispersion
-testDispersion(f1.res)
+testDispersion(fdent1.res)
 ```
 
 - ¿homocedasticidad? 
 ```{r}
 # Heterocedasticidad
-testQuantiles(f1.res)
+testQuantiles(fdent1.res)
 ```
 
 # Modelo seleccionado 
-
-"den_sqrt ~ 1 + FR_MATDELog + HIDRO_ITH + DS_ARBOLLog" 
+"den_sqrt ~ 1 + HIDRO_ITH + FR_MATDELog + DS_ARBOLLog"
 
 ```{r}
-f1t <- glm(den_sqrt ~ 1 + FR_MATDELog + HIDRO_ITH + DS_ARBOLLog, family = "gaussian", data = m)
-f1t.res <- simulateResiduals(f1t, seed = 123, n=1000, plot=TRUE)
+modelo_densidad <- glm(den_sqrt ~ 1 + FR_MATDELog + HIDRO_ITH + DS_ARBOLLog, family = "gaussian", data = m)
+f1t.res <- simulateResiduals(modelo_densidad, seed = 123, n=1000, plot=TRUE)
 ```
 
 ## Visualización 
@@ -440,16 +444,16 @@ ytitle <- expression(sqrt ("densidad"))
 lab_FR_MATDELog <- expression(log("FR_MATDE + 2"))
 lab_DS_ARBOLLog <- expression(log("DS_ARBOL + 1"))
 
-visreg(f1t, ylab = ytitle, "FR_MATDELog", xlab = lab_FR_MATDELog) 
-visreg(f1t, ylab = ytitle, "DS_ARBOLLog", xlab = lab_DS_ARBOLLog)
-visreg(f1t, ylab = ytitle, "HIDRO_ITH", xlab = "HIDRO_ITH")
+visreg(modelo_densidad, ylab = ytitle, "FR_MATDELog", xlab = lab_FR_MATDELog) 
+visreg(modelo_densidad, ylab = ytitle, "DS_ARBOLLog", xlab = lab_DS_ARBOLLog)
+visreg(modelo_densidad, ylab = ytitle, "HIDRO_ITH", xlab = "HIDRO_ITH")
 ```
 
 ## Parámetros 
 
 ```{r}
 library(tab)
-ms <- f1t
+ms <- modelo_densidad
 tc <- tab::tabglm(ms, columns = c("beta.se",  "test", "p"), decimals = 4) 
 names(tc) <- c("Variable", "Estimate", "Zvalue", "pvalue") 
   

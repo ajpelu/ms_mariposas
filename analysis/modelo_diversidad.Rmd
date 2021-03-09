@@ -51,7 +51,7 @@ library(lme4)
 library(pander)
 library(jtools)
 ```
-
+- Solamente seleccionamos años 2014, 2015, 2016, 2017, 2019
 ```{r}
 df <- read_csv(here::here("data/df_candidatas.csv"))
 
@@ -71,15 +71,18 @@ climate_year <- read_csv(here::here("data/climate_year.csv")) %>%
 # - ojo según nuesta selección previa tenemos: 
 # - Pp_anual, t_anual, Pp_verano --> estas variables voy a coger una por año 
 
+# Filtrar años: 
+yselected <- c(2014, 2015, 2016, 2017, 2019)
+
 m <- d %>% inner_join(climate_year) %>% 
   dplyr::select(-Pp_anu, -t_anual, -Pp_ver) %>% 
   rowwise() %>% 
   mutate(FR_ARBOL = sum(FR_CONIF, FR_QUERC), 
-         yearF = as.factor(year))
+         yearF = as.factor(year)) %>% 
+  filter(year %in% yselected)
 ```
 
-
-# Explora y selecciona variables 
+ # Explora y selecciona variables 
 ```{r}
 theme_set(theme_minimal())
 
@@ -121,7 +124,7 @@ co %>% summary() %>%
   - FR_QUERC y DS_ARBOL (r = `r cor(m$FR_QUERC, m$DS_ARBOL)`)
   - FR_ARBOL y DS_ARBOL (r = `r cor(m$FR_ARBOL, m$DS_ARBOL)`)
     
-3. Evalar relación entre variables:
+3. Evaluar relación entre variables:
 
 
 ```{r}
@@ -256,38 +259,40 @@ Como observamos ahora, no hay posibles problemas de colinealidad entre las candi
 ```{r}
 m %>% dplyr::select(-code, -year, -yearF, -div, -riq, 
                     -FR_QUERC, -FR_CONIF, -TP_SU_NO, 
-                    -t_anual_year, -TP_PEND, -FR_ARBOL) %>% names()
+                    -t_anual_year, -TP_PEND, -FR_ARBOL, -p_anu_year, -p_ver_year) %>% names()
 ```
 
 ```{r}
 nobs_var <- nrow(m)/ncol(m %>% dplyr::select(-code, -year, -yearF, -div, -riq, 
                                              -FR_QUERC, -FR_CONIF, -TP_SU_NO, 
-                                             -t_anual_year, -TP_PEND, -FR_ARBOL))
+                                             -t_anual_year, -TP_PEND, -FR_ARBOL,-p_anu_year, -p_ver_year))
 ```
 
 Algunos hablan de tener entre 15 - 25 veces el numero de observaciones por cada covariable. Actualmente tenemos   
 `r nobs_var`
 
-# Modelización 
+# Modelización Riqueza
 
 ```{r}
 # Define formula 
-f <- as.formula(
+friq <- as.formula(
   paste("riq", 
       paste(
         names(
           m %>% 
             dplyr::select(-code, -year, -yearF, -div, -riq, -FR_QUERC, -FR_CONIF, 
-                          -TP_SU_NO, -t_anual_year, -p_anu_year, -p_ver_year, -TP_PEND, -FR_ARBOL)),
+                          -TP_SU_NO, -t_anual_year, -p_anu_year, -p_ver_year,
+                          -TP_PEND, -FR_ARBOL)),
         collapse = "+"), 
       sep = "~")
 )
+
 ```
 
 Partimos de las siguientes variables potenciales para hacer la seleccion de modelos:
 
 ```{r, echo=TRUE}
-f
+friq
 ```
 
 ## Aproximación modelo GLM Gaussian
@@ -298,7 +303,7 @@ set.seed(1234)
 # fam <- "poisson"
 fam <- "gaussian"
 
-select_f <- glmulti(f, data = m,
+select_friq <- glmulti(friq, data = m,
               level= 1, 
               chunk = 1, chunks = 4, 
               method = "ga", crit = "bic", 
@@ -308,38 +313,37 @@ select_f <- glmulti(f, data = m,
               plotty = FALSE, report = FALSE)
 
 # Summary best models 
-summary_f <- summary(select_f@objects[[1]]) 
+summary_friq <- summary(select_friq@objects[[1]]) 
+
 
 # Select best 5 models 
 # top5_models <- weightable(select_f)
   
-f1 <- glm(select_f@formulas[[1]], family = fam, data = m)
-f2 <- glm(select_f@formulas[[2]], family = fam, data = m)
-f3 <- glm(select_f@formulas[[3]], family = fam, data = m)
-f4 <- glm(select_f@formulas[[4]], family = fam, data = m)
-f5 <- glm(select_f@formulas[[5]], family = fam, data = m)
+friq1 <- glm(select_friq@formulas[[1]], family = fam, data = m)
+friq2 <- glm(select_friq@formulas[[2]], family = fam, data = m)
+friq3 <- glm(select_friq@formulas[[3]], family = fam, data = m)
+friq4 <- glm(select_friq@formulas[[4]], family = fam, data = m)
+friq5 <- glm(select_friq@formulas[[5]], family = fam, data = m)
 
 
 r2 <- function(mimodelo){round(((mimodelo$null.deviance - mimodelo$deviance) / mimodelo$null.deviance),3)}
 
-top5_table <- as.data.frame(model.sel(f1, f2, f3, f4, f5, rank = BIC)) %>% 
+top5_table_friq <- as.data.frame(model.sel(friq1, friq2, friq3, friq4, friq5, rank = BIC)) %>% 
     dplyr::select(-family) %>% 
     mutate(model = 
-             c(f1$formula, f2$formula, f3$formula, f4$formula, f5$formula),
-           r2 = c(r2(f1), r2(f2), r2(f3), r2(f4), r2(f5))
+             c(friq1$formula, friq2$formula, friq3$formula, friq4$formula, friq5$formula),
+           r2 = c(r2(friq1), r2(friq2), r2(friq3), r2(friq4), r2(friq5))
                   ) %>% 
     relocate(model)
 
-write.csv(as.matrix(top5_table), file=here::here("data/mod_riq_selectionBIC.csv"))
+write.csv(as.matrix(top5_table_friq), file=here::here("data/mod_riq_selectionBIC.csv"))
 ```
 
 - Analizamos si el modelo es válido
 
 ```{r}
-f1.res <- simulateResiduals(f1, seed = 123, n=1000, plot=TRUE)
+f1.res <- simulateResiduals(friq1, seed = 123, n=1000, plot=TRUE)
 ```
-
-
 
 - test de dispersion 
 
@@ -353,6 +357,7 @@ testDispersion(f1.res)
 # Heterocedasticidad
 testQuantiles(f1.res)
 ```
+
 
 - Parece que hay algun problema de heterocedasticidad
 - Aplicamos transformación de los datos 
@@ -370,13 +375,13 @@ Transformamos las variables del siguiente modo:
 ```{r}
 m <- m %>% 
   mutate(FR_MATDELog = log(FR_MATDE + 2),
-         DS_ARBOLLog = log(DS_ARBOL + 1), 
+         DS_ARBOLLog = log(DS_ARBOL + 1),
          riq_sqrt = sqrt(riq))
 ```
 
 ```{r}
 # Define formula 
-ft <- as.formula(
+friqt <- as.formula(
   paste("riq_sqrt", 
       paste(
         names(
@@ -396,7 +401,7 @@ set.seed(1234)
 #fam <- "poisson"
 fam <- "gaussian"
 
-select_f <- glmulti(ft, data = m,
+select_friqt <- glmulti(friqt, data = m,
               level= 1, 
               chunk = 1, chunks = 4, 
               method = "ga", crit = "bic", 
@@ -406,35 +411,35 @@ select_f <- glmulti(ft, data = m,
               plotty = FALSE, report = FALSE)
 
 # Summary best models 
-summary_f <- summary(select_f@objects[[1]]) 
+summary_friqt <- summary(select_friqt@objects[[1]]) 
 
 # Select best 5 models 
 # top5_models <- weightable(select_f)
   
-f1 <- glm(select_f@formulas[[1]], family = fam, data = m)
-f2 <- glm(select_f@formulas[[2]], family = fam, data = m)
-f3 <- glm(select_f@formulas[[3]], family = fam, data = m)
-f4 <- glm(select_f@formulas[[4]], family = fam, data = m)
-f5 <- glm(select_f@formulas[[5]], family = fam, data = m)
+friqt1 <- glm(select_friqt@formulas[[1]], family = fam, data = m)
+friqt2 <- glm(select_friqt@formulas[[2]], family = fam, data = m)
+friqt3 <- glm(select_friqt@formulas[[3]], family = fam, data = m)
+friqt4 <- glm(select_friqt@formulas[[4]], family = fam, data = m)
+friqt5 <- glm(select_friqt@formulas[[5]], family = fam, data = m)
 
 
 r2 <- function(mimodelo){round(((mimodelo$null.deviance - mimodelo$deviance) / mimodelo$null.deviance),3)}
 
-top5_table <- as.data.frame(model.sel(f1, f2, f3, f4, f5, rank = BIC)) %>% 
+top5_table_friqt <- as.data.frame(model.sel(friqt1, friqt2, friqt3, friqt4, friqt5, rank = BIC)) %>% 
     dplyr::select(-family) %>% 
     mutate(model = 
-             c(f1$formula, f2$formula, f3$formula, f4$formula, f5$formula),
-           r2 = c(r2(f1), r2(f2), r2(f3), r2(f4), r2(f5))
+             c(friqt1$formula, friqt2$formula, friqt3$formula, friqt4$formula, friqt5$formula),
+           r2 = c(r2(friqt1), r2(friqt2), r2(friqt3), r2(friqt4), r2(friqt5))
                   ) %>% 
     relocate(model)
 
 
-write.csv(as.matrix(top5_table), file=here::here("data/mod_riq_sqrt_selectionBIC.csv"))
+write.csv(as.matrix(top5_table_friqt), file=here::here("data/mod_riq_sqrt_selectionBIC.csv"))
 ```
 
 
 ```{r}
-ft1.res <- simulateResiduals(f1, seed = 123, n=1000, plot=TRUE)
+friqt.res <- simulateResiduals(friqt3, seed = 123, n=1000, plot=TRUE)
 ```
 
 
@@ -445,39 +450,22 @@ Parece que no existen outliers y que no existe heterocedasticidad. Por lo tanto,
 
 
 ```{r}
-pander(as.matrix(top5_table))
+pander(as.matrix(top5_table_friqt))
 ```
 
 
 - Como observamos que los delta son inferiores a 3 en los 5 primeros modelos, vamos a analizar la importancia de las variables predictoras
 
 ```{r}
-importance(model.sel(f1, f2, f3, f4, f5))
+importance(model.sel(friqt1, friqt2, friqt3, friqt4, friqt5))
 ```
 
-Observamos que el modelo 1, tiene un valor predictivo alto, y la diferencia de añadir otras variables, no añade una mejora en la predicción del modelo, y si incrementa el número de parámetros, por lo que no se aconseja incluir esas variable. Así, nos quedamos con el modelo 1. 
-
-```{r, eval=FALSE, echo=FALSE}
-co <- correlation((m %>% dplyr::select(elev, FR_MATDE, HIDRO_ITH, TP_ES_OE, TP_RSH_V, p_anu_year, TP_RSD_P, p_ver_year)))
-
-
-co %>% summary() %>% 
-  plot(size_point = .5, 
-       show_values = TRUE,
-       show_p = TRUE,
-       show_legend = FALSE,
-       size_text = 3.5) + 
-  theme(axis.text = element_text(size = 8))
-
-```
-
-
-# Modelo seleccionado 
+# Modelo seleccionado (friqt3) 
 "riq_sqrt ~ 1 + TP_RSH_V + HIDRO_ITH + elev + FR_MATDELog + DS_ARBOLLog"
 
 ```{r}
-f1t <- glm(riq_sqrt ~ 1 + TP_RSH_V + HIDRO_ITH + elev + FR_MATDELog + DS_ARBOLLog, 
-          family = "gaussian", data = m)
+modelo_riqueza <- glm(riq_sqrt ~ 1 + TP_RSH_V + HIDRO_ITH + elev + FR_MATDELog + DS_ARBOLLog, family = "gaussian", data = m)
+
 ```
 
 ## Visualización 
@@ -488,11 +476,11 @@ ytitle <- expression(sqrt ("riqueza"))
 lab_FR_MATDELog <- expression(log("FR_MATDE + 2"))
 lab_DS_ARBOLLog <- expression(log("DS_ARBOL + 1"))
 
-visreg(f1t, ylab = ytitle, "TP_RSH_V")
-visreg(f1t, ylab = ytitle, "HIDRO_ITH", xlab = "HIDRO_ITH")
-visreg(f1t, ylab = ytitle, "elev")
-visreg(f1t, ylab = ytitle, "FR_MATDELog", xlab = lab_FR_MATDELog) 
-visreg(f1t, ylab = ytitle, "DS_ARBOLLog", xlab = lab_DS_ARBOLLog)
+visreg(modelo_riqueza, ylab = ytitle, "TP_RSH_V")
+visreg(modelo_riqueza, ylab = ytitle, "HIDRO_ITH", xlab = "HIDRO_ITH")
+visreg(modelo_riqueza, ylab = ytitle, "elev")
+visreg(modelo_riqueza, ylab = ytitle, "FR_MATDELog", xlab = lab_FR_MATDELog) 
+visreg(modelo_riqueza, ylab = ytitle, "DS_ARBOLLog", xlab = lab_DS_ARBOLLog)
 
 ```
 
@@ -500,7 +488,7 @@ visreg(f1t, ylab = ytitle, "DS_ARBOLLog", xlab = lab_DS_ARBOLLog)
 
 ```{r}
 library(tab)
-ms <- f1t
+ms <- modelo_riqueza
 tc <- tab::tabglm(ms, columns = c("beta.se",  "test", "p"), decimals = 4) 
 names(tc) <- c("Variable", "Estimate", "Zvalue", "pvalue") 
   
@@ -526,4 +514,233 @@ summ(ms, digits = 4)
 ee <- summ(ms, digits = 4)
 write_csv(as.data.frame(round(ee$coeftable,4)), here::here("data/mod_riq_sqrt_coefficients_SE.csv"))
 ```
+
+# Modelización Diversidad
+
+```{r}
+# Define formula 
+fdiv <- as.formula(
+  paste("div", 
+      paste(
+        names(
+          m %>% 
+            dplyr::select(-code, -year, -yearF, -div, -riq, -FR_QUERC, -FR_CONIF, 
+                          -TP_SU_NO, -t_anual_year, -TP_PEND, -FR_ARBOL, 
+                          -riq_sqrt, -FR_MATDELog, -DS_ARBOLLog, -p_anu_year, -p_ver_year)),
+        collapse = "+"), 
+      sep = "~")
+)
+```
+
+Partimos de las siguientes variables potenciales para hacer la seleccion de modelos:
+
+```{r, echo=TRUE}
+fdiv
+```
+
+## Aproximación modelo GLM Gaussian
+
+```{r, echo = TRUE}
+# automatic model selection 
+set.seed(1234)
+# fam <- "poisson"
+fam <- "gaussian"
+
+select_fdiv <- glmulti(fdiv, data = m,
+              level= 1, 
+              chunk = 1, chunks = 4, 
+              method = "ga", crit = "bic", 
+              family = fam, 
+              marginality = TRUE,
+              confsetsize = 5, 
+              plotty = FALSE, report = FALSE)
+
+# Summary best models 
+summary_fdiv <- summary(select_fdiv@objects[[1]]) 
+
+# Select best 5 models 
+# top5_models <- weightable(select_f)
+  
+fdiv1 <- glm(select_fdiv@formulas[[1]], family = fam, data = m)
+fdiv2 <- glm(select_fdiv@formulas[[2]], family = fam, data = m)
+fdiv3 <- glm(select_fdiv@formulas[[3]], family = fam, data = m)
+fdiv4 <- glm(select_fdiv@formulas[[4]], family = fam, data = m)
+fdiv5 <- glm(select_fdiv@formulas[[5]], family = fam, data = m)
+
+
+r2 <- function(mimodelo){round(((mimodelo$null.deviance - mimodelo$deviance) / mimodelo$null.deviance),3)}
+
+top5_table_fdiv <- as.data.frame(model.sel(fdiv1, fdiv2, fdiv3, fdiv4, fdiv5, rank = BIC)) %>% 
+    dplyr::select(-family) %>% 
+    mutate(model = 
+             c(fdiv1$formula, fdiv2$formula, fdiv3$formula, fdiv4$formula, fdiv5$formula),
+           r2 = c(r2(fdiv1), r2(fdiv2), r2(fdiv3), r2(fdiv4), r2(fdiv5))
+                  ) %>% 
+    relocate(model)
+
+write.csv(as.matrix(top5_table_fdiv), file=here::here("data/mod_div_selectionBIC.csv"))
+```
+
+- Analizamos si el modelo es válido
+
+```{r}
+fdiv1.res <- simulateResiduals(fdiv1, seed = 123, n=1000, plot=TRUE)
+```
+
+- test de dispersion 
+
+```{r}
+# Test dispersion
+testDispersion(fdiv1.res)
+```
+
+- ¿homocedasticidad? 
+```{r}
+# Heterocedasticidad
+testQuantiles(fdiv1.res)
+```
+
+- Parece que hay algun problema de heterocedasticidad
+- Aplicamos transformación de los datos 
+
+## Aproximación modelo GLM Gaussian con variables transformadas 
+
+Transformamos las variables del siguiente modo: 
+
+- FR_MATDELog = log(FRMATDE + 2)
+- DS_ARBOLLog = log(DS_ARBOL + 1)
+- div_sqrt como $\sqrt{div}$ 
+
+
+```{r}
+m <- m %>% 
+  mutate(div_sqrt = sqrt(div))
+```
+
+```{r}
+# Define formula 
+fdivt <- as.formula(
+  paste("div", 
+      paste(
+        names(
+          m %>% 
+            dplyr::select(-code, -year, -yearF, -div, -div_sqrt, -riq, -riq_sqrt, -FR_QUERC, -FR_CONIF, 
+                          -TP_SU_NO, -t_anual_year, -p_anu_year, -p_ver_year, -TP_PEND, -FR_ARBOL, -FR_MATDE, -DS_ARBOL)),
+        collapse = "+"), 
+      sep = "~")
+)
+```
+
+
+
+```{r}
+# automatic model selection 
+set.seed(1234)
+#fam <- "poisson"
+fam <- "gaussian"
+
+select_fdivt <- glmulti(fdivt, data = m,
+              level= 1, 
+              chunk = 1, chunks = 4, 
+              method = "ga", crit = "bic", 
+              family = fam, 
+              marginality = TRUE,
+              confsetsize = 5, 
+              plotty = FALSE, report = FALSE)
+
+# Summary best models 
+summary_fdivt <- summary(select_fdivt@objects[[1]]) 
+
+# Select best 5 models 
+# top5_models <- weightable(select_f)
+  
+fdivt1 <- glm(select_fdivt@formulas[[1]], family = fam, data = m)
+fdivt2 <- glm(select_fdivt@formulas[[2]], family = fam, data = m)
+fdivt3 <- glm(select_fdivt@formulas[[3]], family = fam, data = m)
+fdivt4 <- glm(select_fdivt@formulas[[4]], family = fam, data = m)
+fdivt5 <- glm(select_fdivt@formulas[[5]], family = fam, data = m)
+
+
+r2 <- function(mimodelo){round(((mimodelo$null.deviance - mimodelo$deviance) / mimodelo$null.deviance),3)}
+
+top5_table_fdivt <- as.data.frame(model.sel(fdivt1, fdivt2, fdivt3, fdivt4, fdivt5, rank = BIC)) %>% 
+    dplyr::select(-family) %>% 
+    mutate(model = 
+             c(fdivt1$formula, fdivt2$formula, fdivt3$formula, fdivt4$formula, fdivt5$formula),
+           r2 = c(r2(fdivt1), r2(fdivt2), r2(fdivt3), r2(fdivt4), r2(fdivt5))
+                  ) %>% 
+    relocate(model)
+
+
+write.csv(as.matrix(top5_table_fdivt), file=here::here("data/mod_div_sqrt_selectionBIC.csv"))
+```
+
+
+```{r}
+fdivt2.res <- simulateResiduals(fdivt2, seed = 123, n=1000, plot=TRUE)
+```
+
+
+
+# Modelo seleccionado 
+```{r}
+formula(fdivt2)
+```
+
+"div ~ 1 + TP_RSH_V + HIDRO_ITH + elev + FR_MATDELog + DS_ARBOLLog"
+
+```{r}
+modelo_diversidad <- glm(div ~ 1 + TP_RSH_V + HIDRO_ITH + elev + FR_MATDELog + DS_ARBOLLog, 
+          family = "gaussian", data = m)
+
+modelo_diversidad.res <- simulateResiduals(modelo_diversidad, seed = 123, n=1000, plot=TRUE)
+```
+
+## Visualización 
+
+```{r}
+library(visreg)
+ytitle <- "Diversidad"
+lab_FR_MATDELog <- expression(log("FR_MATDE + 2"))
+lab_DS_ARBOLLog <- expression(log("DS_ARBOL + 1"))
+
+visreg(modelo_diversidad, ylab = ytitle, "TP_RSH_V")
+visreg(modelo_diversidad, ylab = ytitle, "HIDRO_ITH", xlab = "HIDRO_ITH")
+visreg(modelo_diversidad, ylab = ytitle, "elev")
+visreg(modelo_diversidad, ylab = ytitle, "FR_MATDELog", xlab = lab_FR_MATDELog) 
+visreg(modelo_diversidad, ylab = ytitle, "DS_ARBOLLog", xlab = lab_DS_ARBOLLog)
+```
+
+## Parámetros 
+
+```{r}
+library(tab)
+ms <- modelo_diversidad
+tc <- tab::tabglm(ms, columns = c("beta.se",  "test", "p"), decimals = 4) 
+names(tc) <- c("Variable", "Estimate", "Zvalue", "pvalue") 
+  
+tablita_auxiliar <- data.frame(
+    Variable = c("DegreeFreedom", "AIC", "BIC", "DevianceExplained"), 
+    Estimate = as.character(c(df.residual(ms), round(AIC(ms),0), round(BIC(ms), 0), 
+                              round( ((ms$null.deviance - ms$deviance) / ms$null.deviance),3))),
+    Zvalue = "", pvalue = "")
+  
+tc <- bind_rows(tc, tablita_auxiliar)
+
+write.csv(tc, here::here("data/mod_div_coefficients.csv"))
+```
+
+
+```{r}
+knitr::kable(tc)
+```
+
+```{r, echo=TRUE}
+set_summ_defaults(digits = 4)
+summ(ms, digits = 4)
+ee <- summ(ms, digits = 4)
+write_csv(as.data.frame(round(ee$coeftable,4)), here::here("data/mod_div_coefficients_SE.csv"))
+```
+
+
 
