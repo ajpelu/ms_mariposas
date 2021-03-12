@@ -450,6 +450,30 @@ nspecies <- m %>% inner_join(abr) %>%
   dplyr::select(code, sp) %>% 
   group_by(code) %>% count()
 
+
+# Filter year
+yselected <- c(2014, 2015, 2016, 2017, 2019)
+
+my <- dfno2018 %>% 
+  filter(!(especie %in% taxanodeterminados)) %>% 
+  filter(year %in% yselected) %>%
+  mutate(sp = str_replace(especie, " ", ".")) %>% 
+  group_by(nombre, sp, year) %>% 
+  summarise(n_ind = sum(numero)) %>% 
+  filter(nombre != "Hoya Mora Fen-Marip") %>% 
+  pivot_wider(names_from = year, 
+              values_from=n_ind, names_prefix = "y", values_fill = 0) %>% as.data.frame()
+
+nspecies_yearselect <- my %>% 
+  inner_join(abr) %>% 
+  dplyr::select(code, sp) %>% 
+  group_by(code) %>% count() %>% rename("n_year_selected" = n)
+
+nspecies <- nspecies %>% inner_join(nspecies_yearselect)
+
+write_csv(nspecies, here::here("data/richness.csv"))
+  
+
 abundancia <- densidad %>% 
   filter(nombre != "Hoya Mora Fen-Marip") %>% 
   group_by(nombre) %>% 
