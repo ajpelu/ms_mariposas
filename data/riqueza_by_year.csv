@@ -1,137 +1,137 @@
-nombre,year,riq,code
-Aguas Verdes,2012,6,AV
-Aguas Verdes,2013,4,AV
-Aguas Verdes,2014,7,AV
-Aguas Verdes,2015,6,AV
-Aguas Verdes,2016,7,AV
-Aguas Verdes,2017,12,AV
-Aguas Verdes,2019,6,AV
-Barranco de San Juan,2012,30,BSJ
-Barranco de San Juan,2013,39,BSJ
-Barranco de San Juan,2014,38,BSJ
-Barranco de San Juan,2015,29,BSJ
-Barranco de San Juan,2016,28,BSJ
-Barranco de San Juan,2017,43,BSJ
-Barranco de San Juan,2019,36,BSJ
-BMS_ DurcaL,2014,45,DU
-BMS_ DurcaL,2015,42,DU
-BMS_ DurcaL,2016,42,DU
-BMS_ DurcaL,2017,51,DU
-BMS_ DurcaL,2018,52,DU
-BMS_ DurcaL,2019,47,DU
-BMS_Laguna,2014,16,LP
-BMS_Laguna,2015,11,LP
-BMS_Laguna,2016,8,LP
-BMS_Laguna,2017,5,LP
-BMS_Laguna,2018,7,LP
-BMS_Laguna,2019,7,LP
-BMS_Pitres,2014,39,PI
-BMS_Pitres,2015,47,PI
-BMS_Pitres,2016,40,PI
-BMS_Pitres,2017,39,PI
-BMS_Pitres,2018,39,PI
-BMS_Pitres,2019,43,PI
-BMS_Turbera,2014,19,TP
-BMS_Turbera,2015,17,TP
-BMS_Turbera,2016,13,TP
-BMS_Turbera,2017,19,TP
-BMS_Turbera,2018,17,TP
-BMS_Turbera,2019,26,TP
-Campo Otero,2012,35,CO
-Campo Otero,2013,34,CO
-Campo Otero,2014,41,CO
-Campo Otero,2015,27,CO
-Campo Otero,2016,44,CO
-Campo Otero,2017,41,CO
-Campo Otero,2019,34,CO
-Carihuela,2012,3,CAR
-Carihuela,2013,3,CAR
-Carihuela,2014,2,CAR
-Carihuela,2015,1,CAR
-Carihuela,2016,5,CAR
-Carihuela,2017,4,CAR
-Carihuela,2019,5,CAR
-Cauchiles,2012,8,CAU
-Cauchiles,2013,8,CAU
-Cauchiles,2014,4,CAU
-Cauchiles,2015,6,CAU
-Cauchiles,2016,3,CAU
-Cauchiles,2017,12,CAU
-Cauchiles,2019,7,CAU
-Hoya Mora,2012,27,HM
-Hoya Mora,2013,28,HM
-Hoya Mora,2014,25,HM
-Hoya Mora,2015,19,HM
-Hoya Mora,2016,25,HM
-Hoya Mora,2017,24,HM
-Hoya Mora,2019,25,HM
-La Fabriquilla,2012,16,FA
-La Fabriquilla,2013,26,FA
-La Fabriquilla,2014,23,FA
-La Fabriquilla,2015,12,FA
-La Fabriquilla,2016,21,FA
-La Fabriquilla,2017,29,FA
-La Fabriquilla,2019,19,FA
-Laguna Seca,2012,21,LS
-Laguna Seca,2013,17,LS
-Laguna Seca,2014,23,LS
-Laguna Seca,2015,20,LS
-Laguna Seca,2016,20,LS
-Laguna Seca,2017,20,LS
-Laguna Seca,2019,17,LS
-Las Catifas,2012,21,CA
-Las Catifas,2013,36,CA
-Las Catifas,2014,33,CA
-Las Catifas,2015,29,CA
-Las Catifas,2016,28,CA
-Las Catifas,2017,41,CA
-Las Catifas,2019,37,CA
-Las Sabinas,2012,14,SA
-Las Sabinas,2013,20,SA
-Las Sabinas,2014,24,SA
-Las Sabinas,2015,14,SA
-Las Sabinas,2016,12,SA
-Las Sabinas,2017,18,SA
-Las Sabinas,2019,17,SA
-Loma papeles bajo,2012,26,PB
-Loma papeles bajo,2013,29,PB
-Loma papeles bajo,2014,35,PB
-Loma papeles bajo,2015,26,PB
-Loma papeles bajo,2016,29,PB
-Loma papeles bajo,2017,27,PB
-Loma papeles bajo,2019,28,PB
-Los Praillos,2012,16,PR
-Los Praillos,2013,37,PR
-Los Praillos,2014,36,PR
-Los Praillos,2015,26,PR
-Los Praillos,2016,31,PR
-Los Praillos,2017,45,PR
-Los Praillos,2019,37,PR
-Matas verdes,2012,38,MV
-Matas verdes,2013,50,MV
-Matas verdes,2014,61,MV
-Matas verdes,2015,44,MV
-Matas verdes,2016,49,MV
-Matas verdes,2017,61,MV
-Matas verdes,2019,51,MV
-Papeles alto,2012,21,PA
-Papeles alto,2013,24,PA
-Papeles alto,2014,22,PA
-Papeles alto,2015,21,PA
-Papeles alto,2016,28,PA
-Papeles alto,2017,23,PA
-Papeles alto,2019,24,PA
-Purche,2012,39,PU
-Purche,2013,41,PU
-Purche,2014,53,PU
-Purche,2015,40,PU
-Purche,2016,49,PU
-Purche,2017,44,PU
-Purche,2019,51,PU
-Robledal dilar,2012,44,DI
-Robledal dilar,2013,51,DI
-Robledal dilar,2014,64,DI
-Robledal dilar,2015,54,DI
-Robledal dilar,2016,54,DI
-Robledal dilar,2017,61,DI
-Robledal dilar,2019,61,DI
+code,year,riq
+AV,2012,6
+AV,2013,4
+AV,2014,7
+AV,2015,6
+AV,2016,7
+AV,2017,12
+AV,2019,6
+BSJ,2012,30
+BSJ,2013,39
+BSJ,2014,38
+BSJ,2015,29
+BSJ,2016,28
+BSJ,2017,43
+BSJ,2019,36
+CA,2012,21
+CA,2013,36
+CA,2014,33
+CA,2015,29
+CA,2016,28
+CA,2017,41
+CA,2019,37
+CAR,2012,3
+CAR,2013,3
+CAR,2014,2
+CAR,2015,1
+CAR,2016,5
+CAR,2017,4
+CAR,2019,5
+CAU,2012,8
+CAU,2013,8
+CAU,2014,4
+CAU,2015,6
+CAU,2016,3
+CAU,2017,12
+CAU,2019,7
+CO,2012,35
+CO,2013,34
+CO,2014,41
+CO,2015,27
+CO,2016,44
+CO,2017,41
+CO,2019,34
+DI,2012,44
+DI,2013,51
+DI,2014,64
+DI,2015,54
+DI,2016,54
+DI,2017,61
+DI,2019,61
+DU,2014,45
+DU,2015,42
+DU,2016,42
+DU,2017,51
+DU,2018,52
+DU,2019,47
+FA,2012,16
+FA,2013,26
+FA,2014,23
+FA,2015,12
+FA,2016,21
+FA,2017,29
+FA,2019,19
+HM,2012,27
+HM,2013,28
+HM,2014,25
+HM,2015,19
+HM,2016,25
+HM,2017,24
+HM,2019,25
+LP,2014,16
+LP,2015,11
+LP,2016,8
+LP,2017,5
+LP,2018,7
+LP,2019,7
+LS,2012,21
+LS,2013,17
+LS,2014,23
+LS,2015,20
+LS,2016,20
+LS,2017,20
+LS,2019,17
+MV,2012,38
+MV,2013,50
+MV,2014,61
+MV,2015,44
+MV,2016,49
+MV,2017,61
+MV,2019,51
+PA,2012,21
+PA,2013,24
+PA,2014,22
+PA,2015,21
+PA,2016,28
+PA,2017,23
+PA,2019,24
+PB,2012,26
+PB,2013,29
+PB,2014,35
+PB,2015,26
+PB,2016,29
+PB,2017,27
+PB,2019,28
+PI,2014,39
+PI,2015,47
+PI,2016,40
+PI,2017,39
+PI,2018,39
+PI,2019,43
+PR,2012,16
+PR,2013,37
+PR,2014,36
+PR,2015,26
+PR,2016,31
+PR,2017,45
+PR,2019,37
+PU,2012,39
+PU,2013,41
+PU,2014,53
+PU,2015,40
+PU,2016,49
+PU,2017,44
+PU,2019,51
+SA,2012,14
+SA,2013,20
+SA,2014,24
+SA,2015,14
+SA,2016,12
+SA,2017,18
+SA,2019,17
+TP,2014,19
+TP,2015,17
+TP,2016,13
+TP,2017,19
+TP,2018,17
+TP,2019,26
